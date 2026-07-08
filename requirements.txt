@@ -1,0 +1,8 @@
+pandas
+openpyxl
+PySide6
+requests
+beautifulsoup4
+lxml
+rapidfuzz
+xlsxwriter
