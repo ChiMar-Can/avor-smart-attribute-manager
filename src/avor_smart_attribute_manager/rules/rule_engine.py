@@ -30,6 +30,10 @@ def validate_article(article: Article, rules: AttributeRules) -> ArticleValidati
     Ein Attribut gilt als *gefüllt*, wenn sein Wert nicht ``None`` ist. Leere
     Werte werden bereits beim Import zu ``None`` vereinheitlicht.
 
+    Nur Spalten, die im Regelwerk als Attribut bekannt sind (siehe
+    :attr:`AttributeRules.all_attributes`), werden geprüft. Übrige Spalten
+    gelten als ERP-Metadaten (z. B. Bestand, Hersteller) und werden ignoriert.
+
     Args:
         article: Der zu prüfende Artikel.
         rules: Das anzuwendende Regelwerk.
@@ -37,9 +41,12 @@ def validate_article(article: Article, rules: AttributeRules) -> ArticleValidati
     Returns:
         Das strukturierte Prüfergebnis des Artikels.
     """
-    # Gefüllte Attribute in Reihenfolge der Artikelspalten (unabhängig vom Status).
+    known_attributes = rules.all_attributes
+    # Gefüllte, im Regelwerk bekannte Attribute in Reihenfolge der Artikelspalten.
     filled_attributes = tuple(
-        name for name, value in article.attributes.items() if value is not None
+        name
+        for name, value in article.attributes.items()
+        if value is not None and name in known_attributes
     )
 
     if not rules.is_known(article.sachgruppenklasse):

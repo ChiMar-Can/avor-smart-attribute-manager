@@ -75,6 +75,20 @@ class AttributeRules:
         """Alle im Regelwerk hinterlegten Sachgruppenklassen."""
         return frozenset(self.rules_by_sachgruppe)
 
+    @property
+    def all_attributes(self) -> frozenset[str]:
+        """Alle im Regelwerk bekannten Attributnamen (über alle Sachgruppen).
+
+        Dient als „Attribut-Universum“: ERP-Spalten, die hier nicht vorkommen,
+        gelten als Metadaten (z. B. Bestand, Hersteller) und werden bei der
+        Regelprüfung ignoriert.
+        """
+        return frozenset(
+            attribute
+            for attributes in self.rules_by_sachgruppe.values()
+            for attribute in attributes
+        )
+
 
 #: Standardbeschreibung des generierten Regelwerks.
 _GENERATED_DESCRIPTION = (
