@@ -116,15 +116,25 @@ for result in results:
 - **Import:** validiert die Basisspalten (`ARTIKELNUMMER`,
   `SACHGRUPPENKLASSE`) und normalisiert Attribut-Spaltennamen
   (z. B. `Dimmension` → `Dimension`, `SMD-Bauform` → `SmdBauform`).
-- **Regelwerk:** je Sachgruppe erlaubte Attribute; gepflegt in
-  `src/avor_smart_attribute_manager/config/attribute_rules.json` (nicht im Code).
-  Das mitgelieferte Regelwerk ist leer und muss mit den realen Sachgruppen
-  befüllt werden.
+- **Regelwerk:** je Sachgruppe erlaubte Attribute; **generiert** nach
+  `src/avor_smart_attribute_manager/config/attribute_rules.json` (nicht im Code
+  und nicht von Hand gepflegt).
 - **Ergebnis:** je Artikel Status (`OK`, `UNKNOWN_SACHGRUPPE`, `ISSUES_FOUND`)
   sowie fehlende bzw. unzulässig gefüllte Attribute.
 
-Details zu Schema und zum Ergänzen neuer Sachgruppen:
-[`docs/architecture.md`](docs/architecture.md).
+### Attributregeln pflegen
+
+Die Sachgruppen und ihre erlaubten Attribute werden fachlich in einer
+Excel-Liste gepflegt: `data/attribute_catalog/20260706_Attribute.xlsx`
+(Spalten `Sachgruppe`, `Attribut`). Daraus wird das Regelwerk generiert:
+
+```bash
+python scripts/generate_attribute_rules.py
+```
+
+Neue Sachgruppe oder neues Attribut: Zeile(n) im Katalog ergänzen, ggf. eine
+Spalten-Normalisierung in `excel/columns.py` hinzufügen, dann neu generieren.
+Details zu Schema und Ablauf: [`docs/architecture.md`](docs/architecture.md).
 
 ## Roadmap
 

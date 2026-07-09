@@ -179,8 +179,32 @@ Konfigurationsdatei und wird über `rules.load_attribute_rules` geladen.
 
 - **Attributnamen** entsprechen den **normalisierten** Spaltennamen (siehe
   `COLUMN_RENAME_MAP`).
-- Das mitgelieferte Standard-Regelwerk ist **leer** (`"sachgruppen": {}`) und
-  muss mit den realen Sachgruppen/Attributen befüllt werden.
+- Das mitgelieferte Regelwerk wird **aus dem Attribut-Katalog generiert** (siehe
+  unten) und enthält die realen Sachgruppen. Es wird **nicht** von Hand
+  gepflegt.
+
+### Attribut-Katalog und Generierung
+
+Die Sachgruppen und ihre Attribute werden fachlich in einer Excel-Liste
+gepflegt (Katalog) und daraus in das JSON-Regelwerk übersetzt.
+
+- **Quelle:** `data/attribute_catalog/20260706_Attribute.xlsx` mit den Spalten
+  `Sachgruppe` und `Attribut` (eine Zeile je erlaubtem Attribut).
+- **Parser:** `excel.rule_catalog.read_attribute_catalog` liest den Katalog,
+  normalisiert die Attributnamen (identisch zum Import) und entfernt Duplikate
+  unter Beibehaltung der Reihenfolge.
+- **Generator:** `scripts/generate_attribute_rules.py` schreibt daraus
+  `config/attribute_rules.json`.
+
+Ablauf zum Aktualisieren der Regeln:
+
+```bash
+python scripts/generate_attribute_rules.py
+```
+
+Die Sachgruppe `Allgemein` ist eine reguläre Sachgruppe im Katalog; ihre
+Attribute werden **nicht** automatisch auf andere Sachgruppen übertragen – jede
+Sachgruppe führt ihre erlaubten Attribute vollständig selbst auf.
 
 ### Regelprüfung und Ergebnis
 
@@ -197,13 +221,15 @@ Es werden **keine** Werte verändert – nur geprüft.
 
 ### Neue Sachgruppe ergänzen
 
-1. In `config/attribute_rules.json` unter `sachgruppen` einen neuen Eintrag mit
-   dem exakten `SACHGRUPPENKLASSE`-Wert anlegen.
-2. Unter `allowed_attributes` die relevanten (normalisierten) Attributnamen
-   auflisten.
-3. Kommt eine neue ERP-Attributspalte mit abweichender Schreibweise hinzu,
+1. Im Katalog (`data/attribute_catalog/…xlsx`) je erlaubtem Attribut eine Zeile
+   mit der neuen `Sachgruppe` und dem `Attribut` ergänzen.
+2. Kommt eine neue Attributspalte mit abweichender Schreibweise hinzu,
    zusätzlich eine Zuordnung in `excel.columns.COLUMN_RENAME_MAP` ergänzen.
+3. Regelwerk neu generieren: `python scripts/generate_attribute_rules.py`.
 4. Kein Code der Regelprüfung muss geändert werden.
+
+`config/attribute_rules.json` ist eine generierte Datei und sollte nicht von
+Hand bearbeitet werden.
 
 ## Abhängigkeitsrichtung
 
@@ -252,9 +278,10 @@ treffen (Details siehe Pull-Request-Beschreibung):
 - Als Basisspalten werden `ARTIKELNUMMER` und `SACHGRUPPENKLASSE` angenommen;
   bei abweichenden Bezeichnungen sind `excel.columns` und ggf. der Import
   anzupassen.
-- Das Regelwerk (`config/attribute_rules.json`) wird leer ausgeliefert und muss
-  mit den realen Sachgruppen/Attributen befüllt werden (keine Firmendaten im
-  Repository).
+- Das Regelwerk (`config/attribute_rules.json`) wird aus dem Attribut-Katalog
+  generiert (27 Sachgruppen). Es wird angenommen, dass die
+  `SACHGRUPPENKLASSE`-Werte der ERP-Exporte den `Sachgruppe`-Namen des Katalogs
+  entsprechen.
 - Alle erlaubten Attribute gelten aktuell als relevant (fehlend = leer). Eine
   Unterscheidung „Pflicht vs. optional“ ist bewusst noch nicht umgesetzt.
 - Externe Datenquellen und KI-Anbindung sind bewusst noch nicht umgesetzt.
