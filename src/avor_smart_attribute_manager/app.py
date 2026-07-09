@@ -14,24 +14,25 @@ Verantwortung:
   GUI zur Verfügung stellen (Dependency Injection).
 
 Hier befindet sich bewusst **keine** Geschäftslogik – lediglich der
-Zusammenbau. Die Funktion :func:`run` ist derzeit ein Platzhalter.
+Zusammenbau. Solange es noch keine GUI gibt, delegiert :func:`run` an die
+Kommandozeilenanwendung (:mod:`avor_smart_attribute_manager.cli`).
 """
 
 from __future__ import annotations
 
+from avor_smart_attribute_manager.cli import main
 
-def run() -> int:
+
+def run(argv: list[str] | None = None) -> int:
     """Startet die Anwendung.
 
-    Platzhalter für den späteren Programmstart. Die konkrete Implementierung
-    (GUI hochfahren, Konfiguration laden, Ereignisschleife starten) folgt in
-    einem späteren Entwicklungsschritt.
+    Aktuell existiert noch keine GUI; der Start delegiert daher an die
+    Kommandozeilenanwendung.
+
+    Args:
+        argv: Optionale Argumentliste (vor allem für Tests).
 
     Returns:
-        Beabsichtigter Prozess-Exit-Code (``0`` bei Erfolg).
-
-    Raises:
-        NotImplementedError: Solange der Anwendungsstart noch nicht
-            implementiert ist.
+        Prozess-Exit-Code (``0`` bei Erfolg).
     """
-    raise NotImplementedError("Anwendungsstart ist noch nicht implementiert.")
+    return main(argv)
