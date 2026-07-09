@@ -14,8 +14,13 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-#: Spalte mit der eindeutigen Artikelnummer.
+#: Kanonischer Name der Spalte mit der eindeutigen Artikelnummer.
 ARTICLE_NUMBER_COLUMN = "ARTIKELNUMMER"
+
+#: Akzeptierte Schreibweisen für die Artikelnummer-Spalte. Unterschiedliche
+#: ERP-Exporte benennen diese Spalte verschieden (z. B. ``ARTIKEL``); sie wird
+#: bei der Normalisierung auf :data:`ARTICLE_NUMBER_COLUMN` vereinheitlicht.
+ARTICLE_NUMBER_ALIASES: tuple[str, ...] = (ARTICLE_NUMBER_COLUMN, "ARTIKEL")
 
 #: Spalte mit der Sachgruppenklasse, anhand derer das Regelwerk greift.
 SACHGRUPPE_COLUMN = "SACHGRUPPENKLASSE"
@@ -58,10 +63,23 @@ def normalize_column_name(name: str) -> str:
 def normalize_columns(columns: Iterable[str]) -> list[str]:
     """Normalisiert eine Folge von Spaltennamen.
 
+    Neben den Attributumbenennungen (:data:`COLUMN_RENAME_MAP`) wird die
+    Artikelnummer-Spalte vereinheitlicht: Ist der kanonische Name
+    :data:`ARTICLE_NUMBER_COLUMN` nicht vorhanden, wird der erste vorhandene
+    Alias aus :data:`ARTICLE_NUMBER_ALIASES` darauf umbenannt.
+
     Args:
         columns: Ursprüngliche Spaltennamen.
 
     Returns:
         Liste der normalisierten Spaltennamen in unveränderter Reihenfolge.
     """
-    return [normalize_column_name(column) for column in columns]
+    normalized = [normalize_column_name(column) for column in columns]
+
+    if ARTICLE_NUMBER_COLUMN not in normalized:
+        for index, name in enumerate(normalized):
+            if name in ARTICLE_NUMBER_ALIASES:
+                normalized[index] = ARTICLE_NUMBER_COLUMN
+                break
+
+    return normalized
