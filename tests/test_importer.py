@@ -41,6 +41,23 @@ def test_load_articles_reads_and_normalizes_columns(tmp_path: Path) -> None:
     assert article.attributes["Dimension"] == "0805"
 
 
+def test_load_articles_accepts_artikel_alias(tmp_path: Path) -> None:
+    # Reale ERP-Exporte nennen die Artikelnummer-Spalte "ARTIKEL".
+    frame = pd.DataFrame(
+        {
+            "ARTIKEL": ["1003829"],
+            "SACHGRUPPENKLASSE": ["Transistor"],
+            "Wert": ["100"],
+        }
+    )
+    excel_path = _write_excel(tmp_path / "erp.xlsx", frame)
+
+    articles = load_articles(excel_path)
+
+    assert len(articles) == 1
+    assert articles[0].article_number == "1003829"
+
+
 def test_empty_values_are_normalized_to_none() -> None:
     frame = pd.DataFrame(
         {

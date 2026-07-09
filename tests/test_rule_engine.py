@@ -13,6 +13,9 @@ from avor_smart_attribute_manager.rules.rule_engine import (
 _RULES = AttributeRules(
     rules_by_sachgruppe={
         "WIDERSTAND": ("Dimension", "Widerstandattribut"),
+        # Eigene Sachgruppe, damit "Feeder" ein bekanntes Attribut ist
+        # (Attribut-Universum), aber für WIDERSTAND nicht erlaubt.
+        "SPULE": ("Feeder",),
     }
 )
 
@@ -67,6 +70,27 @@ def test_disallowed_filled_attribute_is_detected() -> None:
 
     assert result.status is CheckStatus.ISSUES_FOUND
     assert result.disallowed_filled_attributes == ("Feeder",)
+
+
+def test_metadata_columns_are_ignored() -> None:
+    # Spalten, die im Regelwerk gar nicht vorkommen (z. B. ERP-Metadaten),
+    # werden weder als gefüllt noch als unzulässig gewertet.
+    result = validate_article(
+        _article(
+            "WIDERSTAND",
+            {
+                "Dimension": "0805",
+                "Widerstandattribut": "10k",
+                "IstBestand": "42",
+                "Hersteller": "ACME",
+            },
+        ),
+        _RULES,
+    )
+
+    assert result.status is CheckStatus.OK
+    assert result.filled_attributes == ("Dimension", "Widerstandattribut")
+    assert result.disallowed_filled_attributes == ()
 
 
 def test_validate_articles_preserves_order() -> None:

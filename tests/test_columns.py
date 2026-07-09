@@ -40,3 +40,18 @@ def test_normalize_unknown_column_is_unchanged_but_trimmed() -> None:
 def test_normalize_columns_preserves_order() -> None:
     columns = ["ARTIKELNUMMER", "Dimmension", "Feeder-Typ"]
     assert normalize_columns(columns) == ["ARTIKELNUMMER", "Dimension", "Feeder"]
+
+
+def test_normalize_columns_maps_artikel_alias() -> None:
+    columns = ["ARTIKEL", "SACHGRUPPENKLASSE", "Dimmension"]
+    assert normalize_columns(columns) == [
+        "ARTIKELNUMMER",
+        "SACHGRUPPENKLASSE",
+        "Dimension",
+    ]
+
+
+def test_normalize_columns_keeps_canonical_when_both_present() -> None:
+    # Ist der kanonische Name bereits vorhanden, wird der Alias nicht umbenannt.
+    columns = ["ARTIKELNUMMER", "ARTIKEL"]
+    assert normalize_columns(columns) == ["ARTIKELNUMMER", "ARTIKEL"]

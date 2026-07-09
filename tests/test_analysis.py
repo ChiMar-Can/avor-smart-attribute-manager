@@ -31,7 +31,10 @@ def test_analyze_workbook_end_to_end(tmp_path: Path) -> None:
                 "sachgruppen": {
                     "WIDERSTAND": {
                         "allowed_attributes": ["Dimension", "Widerstandattribut"]
-                    }
+                    },
+                    # Damit "Feeder" ein bekanntes Attribut ist (Universum),
+                    # für WIDERSTAND aber unzulässig.
+                    "SPULE": {"allowed_attributes": ["Feeder"]},
                 }
             }
         ),
