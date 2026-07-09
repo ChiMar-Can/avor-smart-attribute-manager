@@ -202,9 +202,28 @@ Ablauf zum Aktualisieren der Regeln:
 python scripts/generate_attribute_rules.py
 ```
 
-Die Sachgruppe `Allgemein` ist eine reguläre Sachgruppe im Katalog; ihre
-Attribute werden **nicht** automatisch auf andere Sachgruppen übertragen – jede
-Sachgruppe führt ihre erlaubten Attribute vollständig selbst auf.
+### Globale Attribute (`Allgemein`)
+
+Die Sachgruppe `Allgemein` ist **keine** eigenständige Sachgruppe, sondern
+definiert **globale Attribute**, die für sämtliche anderen Sachgruppen gelten.
+
+Beim Laden des Regelwerks (`load_attribute_rules`) werden die `Allgemein`-
+Attribute automatisch mit den spezifischen Attributen jeder Sachgruppe
+zusammengeführt. Dabei gilt:
+
+- **`Allgemein`-Attribute zuerst**, danach die sachgruppenspezifischen,
+- **Duplikate entfernt**,
+- **Reihenfolge beibehalten** (erstes Auftreten zählt),
+- `Allgemein` erscheint danach **nicht** in `known_sachgruppen` und wird von
+  `is_known("Allgemein")` als unbekannt gemeldet.
+
+Beispiel: `Allgemein = [Technologie, Typ, Bemerkung]`,
+`Diode = [Typ, Wert, Bemerkung]` ⇒
+`allowed_for("Diode") = (Technologie, Typ, Bemerkung, Wert)`.
+
+Die Zusammenführung geschieht ausschliesslich beim Laden – der Katalog und die
+generierte `attribute_rules.json` enthalten `Allgemein` weiterhin unverändert
+als eigenen Abschnitt. Die Excel-Masterdatei bleibt unberührt.
 
 ### Regelprüfung und Ergebnis
 

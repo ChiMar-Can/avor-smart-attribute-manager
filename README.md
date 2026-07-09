@@ -134,6 +134,11 @@ python scripts/generate_attribute_rules.py
 
 Neue Sachgruppe oder neues Attribut: Zeile(n) im Katalog ergänzen, ggf. eine
 Spalten-Normalisierung in `excel/columns.py` hinzufügen, dann neu generieren.
+
+Die Sachgruppe **`Allgemein`** ist keine eigenständige Sachgruppe, sondern
+definiert globale Attribute: Beim Laden werden sie automatisch jeder anderen
+Sachgruppe vorangestellt (Duplikate entfernt, Reihenfolge beibehalten).
+
 Details zu Schema und Ablauf: [`docs/architecture.md`](docs/architecture.md).
 
 ## Roadmap
