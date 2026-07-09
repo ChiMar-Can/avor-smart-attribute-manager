@@ -139,10 +139,19 @@ bündelt diese Schritte.
 
 - **Basisspalten:** `ARTIKELNUMMER` und `SACHGRUPPENKLASSE` müssen vorhanden
   sein, sonst wird `MissingBaseColumnsError` ausgelöst.
+- **Artikelnummer-Alias:** Heisst die Spalte im Export `ARTIKEL` (statt
+  `ARTIKELNUMMER`), wird sie bei der Normalisierung auf `ARTIKELNUMMER`
+  vereinheitlicht (`excel.columns.ARTICLE_NUMBER_ALIASES`). Ist der kanonische
+  Name bereits vorhanden, bleibt der Alias unverändert.
 - **Spaltennormalisierung:** Nur die in
   `excel.columns.COLUMN_RENAME_MAP` hinterlegten Attributspalten werden
   umbenannt (z. B. `Dimmension` → `Dimension`, `SMD-Bauform` → `SmdBauform`).
   Basisspalten bleiben unverändert.
+- **Metadatenspalten:** ERP-Exporte enthalten Spalten, die keine
+  Sachgruppen-Attribute sind (z. B. `Benennung`, `IstBestand`, `Hersteller`,
+  `ARTIKELGRUPPE`). Diese bleiben erhalten, werden bei der Regelprüfung aber
+  **ignoriert** – geprüft werden nur Spalten aus dem Attribut-Universum
+  (`AttributeRules.all_attributes`, siehe unten).
 - **Leere Werte** (`None`, `NaN`, leere/whitespace-Strings) werden zu `None`
   vereinheitlicht, damit nachgelagerte Prüfungen ohne pandas-Kenntnis
   auskommen.
@@ -239,6 +248,13 @@ als eigenen Abschnitt. Die Excel-Masterdatei bleibt unberührt.
 - `filled_attributes` (tatsächlich befüllte Attribute des Artikels),
 - `disallowed_filled_attributes` (gefüllt, aber nicht vorgesehen),
 - `status` (`OK`, `UNKNOWN_SACHGRUPPE`, `ISSUES_FOUND`).
+
+Geprüft werden nur Spalten aus dem **Attribut-Universum**
+(`AttributeRules.all_attributes` = Vereinigung aller Attribute über alle
+Sachgruppen). Andere Spalten (ERP-Metadaten) fliessen weder in
+`filled_attributes` noch in `disallowed_filled_attributes` ein. Ein Attribut,
+das für eine *andere* Sachgruppe erlaubt ist, aber in der aktuellen befüllt
+wurde, gilt hingegen als unzulässig gefüllt.
 
 Es werden **keine** Werte verändert – nur geprüft.
 

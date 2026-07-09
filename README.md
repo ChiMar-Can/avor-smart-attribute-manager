@@ -120,7 +120,13 @@ for result in results:
 
 - **Import:** validiert die Basisspalten (`ARTIKELNUMMER`,
   `SACHGRUPPENKLASSE`) und normalisiert Attribut-Spaltennamen
-  (z. B. `Dimmension` → `Dimension`, `SMD-Bauform` → `SmdBauform`).
+  (z. B. `Dimmension` → `Dimension`, `SMD-Bauform` → `SmdBauform`). Die
+  Artikelnummer-Spalte darf auch `ARTIKEL` heissen (wird auf `ARTIKELNUMMER`
+  vereinheitlicht).
+- **Nur bekannte Attribute werden geprüft:** Spalten, die im Katalog nicht als
+  Attribut vorkommen (ERP-Metadaten wie `Benennung`, `IstBestand`, `Hersteller`,
+  `ARTIKELGRUPPE`), bleiben in der Ausgabe erhalten, werden aber **nicht**
+  geprüft (keine Falschmeldungen als „unerlaubt gefüllt“).
 - **Regelwerk:** je Sachgruppe erlaubte Attribute; **generiert** nach
   `src/avor_smart_attribute_manager/config/attribute_rules.json` (nicht im Code
   und nicht von Hand gepflegt).
