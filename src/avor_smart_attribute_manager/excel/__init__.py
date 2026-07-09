@@ -14,6 +14,14 @@ Zentrale Regel: Der Import liest ausschliesslich. Der Export schreibt immer in
 
 from __future__ import annotations
 
+from avor_smart_attribute_manager.excel.exporter import (
+    RowCountMismatchError,
+    analysis_output_path,
+    build_analysis_frame,
+    build_summary_frame,
+    export_analysis,
+    write_analysis_workbook,
+)
 from avor_smart_attribute_manager.excel.importer import (
     MissingBaseColumnsError,
     load_articles,
@@ -29,9 +37,15 @@ from avor_smart_attribute_manager.excel.rule_catalog import (
 __all__ = [
     "CatalogFormatError",
     "MissingBaseColumnsError",
+    "RowCountMismatchError",
+    "analysis_output_path",
+    "build_analysis_frame",
+    "build_summary_frame",
+    "export_analysis",
     "load_articles",
     "normalize_dataframe",
     "read_attribute_catalog",
     "read_workbook",
     "to_articles",
+    "write_analysis_workbook",
 ]
