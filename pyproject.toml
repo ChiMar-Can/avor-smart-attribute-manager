@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "avor-smart-attribute-manager"
+version = "0.0.0"
+description = "Werkzeug zur Analyse und qualitativen Verbesserung von ERP-Artikelstammdaten in der Elektronikfertigung (nur Vorschläge, keine automatischen ERP-Änderungen)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+
+# Die Laufzeitabhängigkeiten werden zusätzlich in requirements.txt gepflegt,
+# damit bestehende Arbeitsabläufe (pip install -r requirements.txt) erhalten
+# bleiben. pyproject.toml ist die maßgebliche Quelle für das Packaging.
+dependencies = [
+    "pandas",
+    "openpyxl",
+    "PySide6",
+    "requests",
+    "beautifulsoup4",
+    "lxml",
+    "rapidfuzz",
+    "xlsxwriter",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+    "mypy",
+]
+
+[project.scripts]
+avor-smart-attribute-manager = "avor_smart_attribute_manager.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# Sinnvolle Grundausstattung: Pyflakes (F), pycodestyle (E, W), Import-Sortierung
+# (I), Modernisierung (UP), Bugbear (B) und Docstring-Prüfung (D).
+select = ["E", "W", "F", "I", "UP", "B", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# In Tests sind fehlende Docstrings auf Funktionsebene unkritisch.
+"tests/*" = ["D103"]
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["avor_smart_attribute_manager"]
+mypy_path = "src"
+strict = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
