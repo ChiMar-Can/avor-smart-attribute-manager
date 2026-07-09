@@ -48,10 +48,17 @@ def validate_article(article: Article, rules: AttributeRules) -> ArticleValidati
         )
 
     allowed = rules.allowed_for(article.sachgruppenklasse)
+    allowed_set = set(allowed)
     filled = {name for name, value in article.attributes.items() if value is not None}
 
-    missing = allowed - filled
-    disallowed_filled = filled - allowed
+    # Reihenfolge bewusst beibehalten: fehlende Attribute in Regelwerks-
+    # Reihenfolge, unzulässig gefüllte in Reihenfolge der Artikelspalten.
+    missing = tuple(name for name in allowed if name not in filled)
+    disallowed_filled = tuple(
+        name
+        for name, value in article.attributes.items()
+        if value is not None and name not in allowed_set
+    )
 
     status = (
         CheckStatus.OK
@@ -62,9 +69,9 @@ def validate_article(article: Article, rules: AttributeRules) -> ArticleValidati
     return ArticleValidationResult(
         article_number=article.article_number,
         sachgruppenklasse=article.sachgruppenklasse,
-        allowed_attributes=tuple(sorted(allowed)),
-        missing_attributes=tuple(sorted(missing)),
-        disallowed_filled_attributes=tuple(sorted(disallowed_filled)),
+        allowed_attributes=allowed,
+        missing_attributes=missing,
+        disallowed_filled_attributes=disallowed_filled,
         status=status,
     )
 

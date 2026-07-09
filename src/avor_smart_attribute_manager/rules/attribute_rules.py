@@ -9,7 +9,7 @@ geladen, damit es ohne Codeänderung erweitert werden kann.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
@@ -19,6 +19,11 @@ _DEFAULT_RULES_PACKAGE = "avor_smart_attribute_manager.config"
 
 #: Dateiname des mitgelieferten Standard-Regelwerks.
 _DEFAULT_RULES_FILENAME = "attribute_rules.json"
+
+#: Sachgruppe, deren Attribute als globale Attribute gelten. Sie ist selbst
+#: **keine** eigenständige Sachgruppe, sondern wird beim Laden automatisch mit
+#: jeder anderen Sachgruppe zusammengeführt (globale Attribute zuerst).
+GLOBAL_SACHGRUPPE = "Allgemein"
 
 
 class InvalidRulesError(ValueError):
@@ -30,11 +35,12 @@ class AttributeRules:
     """Repräsentiert das geladene Regelwerk.
 
     Attributes:
-        rules_by_sachgruppe: Zuordnung von Sachgruppenklasse zu der Menge der
-            erlaubten/relevanten Attributnamen.
+        rules_by_sachgruppe: Zuordnung von Sachgruppenklasse zu den erlaubten/
+            relevanten Attributnamen in definierter Reihenfolge (globale
+            Attribute zuerst). Duplikate sind bereits entfernt.
     """
 
-    rules_by_sachgruppe: Mapping[str, frozenset[str]]
+    rules_by_sachgruppe: Mapping[str, tuple[str, ...]]
 
     def is_known(self, sachgruppe: str) -> bool:
         """Prüft, ob eine Sachgruppenklasse im Regelwerk hinterlegt ist.
@@ -47,18 +53,22 @@ class AttributeRules:
         """
         return sachgruppe in self.rules_by_sachgruppe
 
-    def allowed_for(self, sachgruppe: str) -> frozenset[str]:
+    def allowed_for(self, sachgruppe: str) -> tuple[str, ...]:
         """Liefert die erlaubten Attribute einer Sachgruppenklasse.
+
+        Die globalen Attribute (Sachgruppe ``Allgemein``) sind bereits
+        eingemischt und stehen – unter Beibehaltung der Reihenfolge – vor den
+        sachgruppenspezifischen Attributen.
 
         Args:
             sachgruppe: Sachgruppenklasse, deren erlaubte Attribute gesucht
                 werden.
 
         Returns:
-            Die Menge der erlaubten Attributnamen; eine leere Menge, wenn die
-            Sachgruppe unbekannt ist.
+            Die erlaubten Attributnamen in definierter Reihenfolge; ein leeres
+            Tupel, wenn die Sachgruppe unbekannt ist.
         """
-        return self.rules_by_sachgruppe.get(sachgruppe, frozenset())
+        return self.rules_by_sachgruppe.get(sachgruppe, ())
 
     @property
     def known_sachgruppen(self) -> frozenset[str]:
@@ -100,8 +110,21 @@ def rules_document_from_mapping(
     }
 
 
+def _dedupe_preserving_order(items: Iterable[str]) -> tuple[str, ...]:
+    """Entfernt Duplikate und behält die Reihenfolge des ersten Auftretens bei."""
+    seen: dict[str, None] = {}
+    for item in items:
+        seen.setdefault(item, None)
+    return tuple(seen)
+
+
 def _parse_rules(data: object) -> AttributeRules:
     """Wandelt die geladenen JSON-Daten in :class:`AttributeRules` um.
+
+    Die Attribute der Sachgruppe ``Allgemein`` (siehe :data:`GLOBAL_SACHGRUPPE`)
+    gelten global: Sie werden jeder anderen Sachgruppe vorangestellt und
+    dedupliziert; ``Allgemein`` selbst wird **nicht** als eigenständige
+    Sachgruppe geführt.
 
     Args:
         data: Bereits deserialisierter Inhalt der Regelwerksdatei.
@@ -120,7 +143,7 @@ def _parse_rules(data: object) -> AttributeRules:
     if not isinstance(sachgruppen, dict):
         raise InvalidRulesError("Feld 'sachgruppen' muss ein JSON-Objekt sein.")
 
-    rules: dict[str, frozenset[str]] = {}
+    parsed: dict[str, tuple[str, ...]] = {}
     for sachgruppe, definition in sachgruppen.items():
         if not isinstance(definition, dict):
             raise InvalidRulesError(
@@ -134,7 +157,13 @@ def _parse_rules(data: object) -> AttributeRules:
                 f"'allowed_attributes' der Sachgruppe '{sachgruppe}' muss eine "
                 "Liste von Zeichenketten sein."
             )
-        rules[sachgruppe] = frozenset(allowed)
+        parsed[sachgruppe] = tuple(allowed)
+
+    global_attributes = parsed.pop(GLOBAL_SACHGRUPPE, ())
+    rules = {
+        sachgruppe: _dedupe_preserving_order((*global_attributes, *specific))
+        for sachgruppe, specific in parsed.items()
+    }
 
     return AttributeRules(rules_by_sachgruppe=rules)
 
