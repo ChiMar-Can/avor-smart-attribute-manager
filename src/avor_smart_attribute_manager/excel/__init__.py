@@ -21,11 +21,17 @@ from avor_smart_attribute_manager.excel.importer import (
     read_workbook,
     to_articles,
 )
+from avor_smart_attribute_manager.excel.rule_catalog import (
+    CatalogFormatError,
+    read_attribute_catalog,
+)
 
 __all__ = [
+    "CatalogFormatError",
     "MissingBaseColumnsError",
     "load_articles",
     "normalize_dataframe",
+    "read_attribute_catalog",
     "read_workbook",
     "to_articles",
 ]
