@@ -15,8 +15,15 @@ Projekts). Die Analyse ist unabhängig von der GUI und daher isoliert testbar.
 from __future__ import annotations
 
 from avor_smart_attribute_manager.analysis.attribute_analyzer import (
+    AnalysisExport,
+    analyze_and_export,
     analyze_articles,
     analyze_workbook,
 )
 
-__all__ = ["analyze_articles", "analyze_workbook"]
+__all__ = [
+    "AnalysisExport",
+    "analyze_and_export",
+    "analyze_articles",
+    "analyze_workbook",
+]
