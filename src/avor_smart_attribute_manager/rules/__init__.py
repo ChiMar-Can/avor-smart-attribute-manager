@@ -20,6 +20,7 @@ from avor_smart_attribute_manager.rules.attribute_rules import (
     AttributeRules,
     InvalidRulesError,
     load_attribute_rules,
+    rules_document_from_mapping,
 )
 from avor_smart_attribute_manager.rules.rule_engine import (
     validate_article,
@@ -30,6 +31,7 @@ __all__ = [
     "AttributeRules",
     "InvalidRulesError",
     "load_attribute_rules",
+    "rules_document_from_mapping",
     "validate_article",
     "validate_articles",
 ]

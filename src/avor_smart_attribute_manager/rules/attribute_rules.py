@@ -66,6 +66,40 @@ class AttributeRules:
         return frozenset(self.rules_by_sachgruppe)
 
 
+#: Standardbeschreibung des generierten Regelwerks.
+_GENERATED_DESCRIPTION = (
+    "Automatisch aus dem Attribut-Katalog generiert. Nicht manuell bearbeiten – "
+    "stattdessen den Katalog pflegen und neu generieren (siehe README)."
+)
+
+
+def rules_document_from_mapping(
+    mapping: Mapping[str, list[str]],
+    *,
+    version: int = 1,
+    description: str = _GENERATED_DESCRIPTION,
+) -> dict[str, object]:
+    """Erzeugt das JSON-Dokument des Regelwerks aus einer Zuordnung.
+
+    Args:
+        mapping: Zuordnung von Sachgruppenklasse zu erlaubten Attributnamen.
+        version: Schemaversion des Regelwerks.
+        description: In das Dokument geschriebene Beschreibung.
+
+    Returns:
+        Ein serialisierbares Dictionary im Schema der Regelwerksdatei.
+    """
+    sachgruppen = {
+        sachgruppe: {"allowed_attributes": list(attributes)}
+        for sachgruppe, attributes in mapping.items()
+    }
+    return {
+        "version": version,
+        "description": description,
+        "sachgruppen": sachgruppen,
+    }
+
+
 def _parse_rules(data: object) -> AttributeRules:
     """Wandelt die geladenen JSON-Daten in :class:`AttributeRules` um.
 
