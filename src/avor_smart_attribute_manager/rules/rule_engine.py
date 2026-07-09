@@ -37,11 +37,17 @@ def validate_article(article: Article, rules: AttributeRules) -> ArticleValidati
     Returns:
         Das strukturierte Prüfergebnis des Artikels.
     """
+    # Gefüllte Attribute in Reihenfolge der Artikelspalten (unabhängig vom Status).
+    filled_attributes = tuple(
+        name for name, value in article.attributes.items() if value is not None
+    )
+
     if not rules.is_known(article.sachgruppenklasse):
         return ArticleValidationResult(
             article_number=article.article_number,
             sachgruppenklasse=article.sachgruppenklasse,
             allowed_attributes=(),
+            filled_attributes=filled_attributes,
             missing_attributes=(),
             disallowed_filled_attributes=(),
             status=CheckStatus.UNKNOWN_SACHGRUPPE,
@@ -49,15 +55,13 @@ def validate_article(article: Article, rules: AttributeRules) -> ArticleValidati
 
     allowed = rules.allowed_for(article.sachgruppenklasse)
     allowed_set = set(allowed)
-    filled = {name for name, value in article.attributes.items() if value is not None}
+    filled = set(filled_attributes)
 
     # Reihenfolge bewusst beibehalten: fehlende Attribute in Regelwerks-
     # Reihenfolge, unzulässig gefüllte in Reihenfolge der Artikelspalten.
     missing = tuple(name for name in allowed if name not in filled)
     disallowed_filled = tuple(
-        name
-        for name, value in article.attributes.items()
-        if value is not None and name not in allowed_set
+        name for name in filled_attributes if name not in allowed_set
     )
 
     status = (
@@ -70,6 +74,7 @@ def validate_article(article: Article, rules: AttributeRules) -> ArticleValidati
         article_number=article.article_number,
         sachgruppenklasse=article.sachgruppenklasse,
         allowed_attributes=allowed,
+        filled_attributes=filled_attributes,
         missing_attributes=missing,
         disallowed_filled_attributes=disallowed_filled,
         status=status,
