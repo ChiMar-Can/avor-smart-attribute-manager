@@ -29,6 +29,32 @@ def test_load_bundled_default_rules_is_populated() -> None:
     assert "SMD-Bauform" not in rules.allowed_for("Widerstand")
 
 
+def test_allgemein_is_not_a_standalone_sachgruppe() -> None:
+    rules = load_attribute_rules()
+
+    assert "Allgemein" not in rules.known_sachgruppen
+    assert not rules.is_known("Allgemein")
+
+
+def test_global_attributes_are_prepended_and_deduplicated(tmp_path: Path) -> None:
+    rules_path = _write_rules(
+        tmp_path / "rules.json",
+        {
+            "sachgruppen": {
+                "Allgemein": {"allowed_attributes": ["Technologie", "Typ", "Bemerkung"]},
+                "Diode": {"allowed_attributes": ["Typ", "Wert", "Bemerkung"]},
+            }
+        },
+    )
+
+    rules = load_attribute_rules(rules_path)
+
+    # Allgemein-Attribute zuerst, danach die spezifischen; Duplikate entfernt,
+    # Reihenfolge beibehalten.
+    assert rules.allowed_for("Diode") == ("Technologie", "Typ", "Bemerkung", "Wert")
+    assert "Allgemein" not in rules.known_sachgruppen
+
+
 def test_load_custom_rules_from_path(tmp_path: Path) -> None:
     rules_path = _write_rules(
         tmp_path / "rules.json",
@@ -43,9 +69,7 @@ def test_load_custom_rules_from_path(tmp_path: Path) -> None:
     rules = load_attribute_rules(rules_path)
 
     assert rules.is_known("WIDERSTAND")
-    assert rules.allowed_for("WIDERSTAND") == frozenset(
-        {"Dimension", "Widerstandattribut"}
-    )
+    assert rules.allowed_for("WIDERSTAND") == ("Dimension", "Widerstandattribut")
 
 
 def test_invalid_json_raises(tmp_path: Path) -> None:

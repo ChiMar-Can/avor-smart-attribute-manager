@@ -12,7 +12,7 @@ from avor_smart_attribute_manager.rules.rule_engine import (
 
 _RULES = AttributeRules(
     rules_by_sachgruppe={
-        "WIDERSTAND": frozenset({"Dimension", "Widerstandattribut"}),
+        "WIDERSTAND": ("Dimension", "Widerstandattribut"),
     }
 )
 
