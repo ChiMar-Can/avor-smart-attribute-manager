@@ -18,11 +18,15 @@ def _write_rules(path: Path, data: dict[str, object]) -> Path:
     return path
 
 
-def test_load_bundled_default_rules() -> None:
+def test_load_bundled_default_rules_is_populated() -> None:
     rules = load_attribute_rules()
 
-    # Das mitgelieferte Standard-Regelwerk ist leer und muss befüllt werden.
-    assert rules.known_sachgruppen == frozenset()
+    # Das mitgelieferte Regelwerk wird aus dem Attribut-Katalog generiert.
+    assert "Widerstand" in rules.known_sachgruppen
+    assert "Feeder" in rules.allowed_for("Widerstand")
+    # Normalisierte Attributnamen werden verwendet (nicht die Rohnamen).
+    assert "Widerstandattribut" in rules.allowed_for("Transistor")
+    assert "SMD-Bauform" not in rules.allowed_for("Widerstand")
 
 
 def test_load_custom_rules_from_path(tmp_path: Path) -> None:
