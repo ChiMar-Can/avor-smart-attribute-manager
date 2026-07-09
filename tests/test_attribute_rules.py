@@ -55,6 +55,24 @@ def test_global_attributes_are_prepended_and_deduplicated(tmp_path: Path) -> Non
     assert "Allgemein" not in rules.known_sachgruppen
 
 
+def test_all_attributes_is_union_over_sachgruppen(tmp_path: Path) -> None:
+    rules_path = _write_rules(
+        tmp_path / "rules.json",
+        {
+            "sachgruppen": {
+                "Allgemein": {"allowed_attributes": ["Technologie"]},
+                "Diode": {"allowed_attributes": ["Typ"]},
+                "Spule": {"allowed_attributes": ["Feeder"]},
+            }
+        },
+    )
+
+    rules = load_attribute_rules(rules_path)
+
+    # Globale Attribute plus alle spezifischen; unabhängig von der Sachgruppe.
+    assert rules.all_attributes == frozenset({"Technologie", "Typ", "Feeder"})
+
+
 def test_load_custom_rules_from_path(tmp_path: Path) -> None:
     rules_path = _write_rules(
         tmp_path / "rules.json",

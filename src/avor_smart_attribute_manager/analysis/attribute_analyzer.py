@@ -9,9 +9,16 @@ lediglich die zuständigen Module.
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
-from avor_smart_attribute_manager.excel.importer import load_articles
+from avor_smart_attribute_manager.excel.exporter import export_analysis
+from avor_smart_attribute_manager.excel.importer import (
+    load_articles,
+    normalize_dataframe,
+    read_workbook,
+    to_articles,
+)
 from avor_smart_attribute_manager.models.article import Article
 from avor_smart_attribute_manager.models.validation import ArticleValidationResult
 from avor_smart_attribute_manager.rules.attribute_rules import (
@@ -52,3 +59,44 @@ def analyze_workbook(
     articles = load_articles(excel_path)
     rules = load_attribute_rules(rules_path)
     return analyze_articles(articles, rules)
+
+
+@dataclass(frozen=True)
+class AnalysisExport:
+    """Ergebnis eines Analyse- und Exportlaufs.
+
+    Attributes:
+        output_path: Pfad der geschriebenen Analysedatei.
+        results: Prüfergebnisse je Artikel (in Zeilenreihenfolge).
+    """
+
+    output_path: Path
+    results: list[ArticleValidationResult]
+
+
+def analyze_and_export(
+    excel_path: Path,
+    output_path: Path | None = None,
+    rules_path: Path | None = None,
+) -> AnalysisExport:
+    """Analysiert einen ERP-Export und schreibt die Ergebnisse als neue Datei.
+
+    Die Eingabedatei wird ausschliesslich gelesen. Die Ausgabe enthält alle
+    Originalspalten sowie die Analysespalten und ein Zusammenfassungsblatt.
+
+    Args:
+        excel_path: Pfad zur einzulesenden ERP-Excel-Datei (nur lesend).
+        output_path: Optionaler Zielpfad; ohne Angabe wird
+            ``<Dateiname>_analyse.xlsx`` verwendet.
+        rules_path: Optionaler Pfad zu einer Regelwerksdatei; ohne Angabe wird
+            das mitgelieferte Standard-Regelwerk verwendet.
+
+    Returns:
+        Ein :class:`AnalysisExport` mit dem Ausgabepfad und den Prüfergebnissen.
+    """
+    original = read_workbook(excel_path)
+    articles = to_articles(normalize_dataframe(original))
+    rules = load_attribute_rules(rules_path)
+    results = analyze_articles(articles, rules)
+    target = export_analysis(original, results, excel_path, output_path)
+    return AnalysisExport(output_path=target, results=results)

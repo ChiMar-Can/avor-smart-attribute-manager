@@ -37,6 +37,8 @@ class ArticleValidationResult:
         sachgruppenklasse: Sachgruppenklasse des Artikels.
         allowed_attributes: Für die Sachgruppe laut Regelwerk erlaubte/relevante
             Attribute (leer, wenn die Sachgruppe unbekannt ist).
+        filled_attributes: Attribute des Artikels, die einen Wert enthalten
+            (unabhängig davon, ob sie erlaubt sind).
         missing_attributes: Erlaubte Attribute, die im Artikel fehlen oder leer
             sind.
         disallowed_filled_attributes: Attribute, die gefüllt sind, obwohl sie
@@ -47,6 +49,7 @@ class ArticleValidationResult:
     article_number: str
     sachgruppenklasse: str
     allowed_attributes: tuple[str, ...]
+    filled_attributes: tuple[str, ...]
     missing_attributes: tuple[str, ...]
     disallowed_filled_attributes: tuple[str, ...]
     status: CheckStatus

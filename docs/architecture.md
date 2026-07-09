@@ -37,7 +37,8 @@ avor-smart-attribute-manager/
 │   └── avor_smart_attribute_manager/   # Python-Paket (importierbarer Code)
 │       ├── __init__.py                 # Paketmetadaten (Version)
 │       ├── __main__.py                 # Einstiegspunkt: python -m ...
-│       ├── app.py                      # Bootstrap / Zusammenbau der Bausteine
+│       ├── app.py                      # Bootstrap (delegiert aktuell an CLI)
+│       ├── cli.py                       # Kommandozeilen-Analyse
 │       ├── config/                     # Konfiguration
 │       │   ├── __init__.py
 │       │   └── settings.py
@@ -68,6 +69,7 @@ avor-smart-attribute-manager/
 │       └── ai/                         # KI-Unterstützung (optional, gekapselt)
 │           ├── __init__.py
 │           └── suggestions.py
+├── main.py                             # CLI-Einstieg: python main.py [analyse ...]
 ├── tests/                              # Automatisierte Tests
 ├── docs/                               # Dokumentation (dieses Dokument)
 ├── pyproject.toml                      # Packaging + Werkzeugkonfiguration
@@ -118,8 +120,9 @@ ERP-Excel-Export (nur lesen)
         ▼                                         │
    models.ArticleValidationResult ───────────────┘
         │
-        ├──►  gui   (Anzeige, Auswahl)            [später]
-        └──►  excel.exporter  ──►  NEUE Excel-Datei [später]
+        ├──►  excel.exporter  ──►  NEUE Excel-Datei [implementiert]
+        │            (<Dateiname>_analyse.xlsx via CLI)
+        └──►  gui   (Anzeige, Auswahl)            [später]
 ```
 
 Die GUI ruft die Fachmodule auf und stellt deren Ergebnisse dar. Die
@@ -136,10 +139,19 @@ bündelt diese Schritte.
 
 - **Basisspalten:** `ARTIKELNUMMER` und `SACHGRUPPENKLASSE` müssen vorhanden
   sein, sonst wird `MissingBaseColumnsError` ausgelöst.
+- **Artikelnummer-Alias:** Heisst die Spalte im Export `ARTIKEL` (statt
+  `ARTIKELNUMMER`), wird sie bei der Normalisierung auf `ARTIKELNUMMER`
+  vereinheitlicht (`excel.columns.ARTICLE_NUMBER_ALIASES`). Ist der kanonische
+  Name bereits vorhanden, bleibt der Alias unverändert.
 - **Spaltennormalisierung:** Nur die in
   `excel.columns.COLUMN_RENAME_MAP` hinterlegten Attributspalten werden
   umbenannt (z. B. `Dimmension` → `Dimension`, `SMD-Bauform` → `SmdBauform`).
   Basisspalten bleiben unverändert.
+- **Metadatenspalten:** ERP-Exporte enthalten Spalten, die keine
+  Sachgruppen-Attribute sind (z. B. `Benennung`, `IstBestand`, `Hersteller`,
+  `ARTIKELGRUPPE`). Diese bleiben erhalten, werden bei der Regelprüfung aber
+  **ignoriert** – geprüft werden nur Spalten aus dem Attribut-Universum
+  (`AttributeRules.all_attributes`, siehe unten).
 - **Leere Werte** (`None`, `NaN`, leere/whitespace-Strings) werden zu `None`
   vereinheitlicht, damit nachgelagerte Prüfungen ohne pandas-Kenntnis
   auskommen.
@@ -233,10 +245,44 @@ als eigenen Abschnitt. Die Excel-Masterdatei bleibt unberührt.
 - `article_number`, `sachgruppenklasse`,
 - `allowed_attributes` (für die Sachgruppe erlaubt),
 - `missing_attributes` (erlaubt, aber leer/fehlend),
+- `filled_attributes` (tatsächlich befüllte Attribute des Artikels),
 - `disallowed_filled_attributes` (gefüllt, aber nicht vorgesehen),
 - `status` (`OK`, `UNKNOWN_SACHGRUPPE`, `ISSUES_FOUND`).
 
+Geprüft werden nur Spalten aus dem **Attribut-Universum**
+(`AttributeRules.all_attributes` = Vereinigung aller Attribute über alle
+Sachgruppen). Andere Spalten (ERP-Metadaten) fliessen weder in
+`filled_attributes` noch in `disallowed_filled_attributes` ein. Ein Attribut,
+das für eine *andere* Sachgruppe erlaubt ist, aber in der aktuellen befüllt
+wurde, gilt hingegen als unzulässig gefüllt.
+
 Es werden **keine** Werte verändert – nur geprüft.
+
+### Analyse-Export und CLI
+
+`analysis.attribute_analyzer.analyze_and_export` verbindet Import, Regelprüfung
+und Export zu einem Lauf: Die Eingabedatei wird nur gelesen, `excel.exporter`
+schreibt eine **neue** Datei `<Dateiname>_analyse.xlsx` (Ableitung via
+`analysis_output_path`). Diese enthält zwei Tabellenblätter:
+
+- **`Analyse`**: alle Originalspalten unverändert plus angefügte Analysespalten
+  (`Pruefstatus`, `Erlaubte_Attribute`, `Gefuellte_Attribute`,
+  `Fehlende_Attribute`, `Nicht_erlaubte_gefuellte_Attribute`,
+  `Anzahl_fehlender_Attribute`, `Anzahl_unzulaessiger_Attribute`). Attributlisten
+  werden kommagetrennt ausgegeben.
+- **`Zusammenfassung`**: Kennzahlen (Anzahl Artikel, OK, unbekannte
+  Sachgruppen, Artikel mit fehlenden bzw. unzulässigen Attributen).
+
+Bedient wird dies über die CLI (`cli.py`, aufrufbar via `main.py` oder
+`python -m avor_smart_attribute_manager`):
+
+```bash
+python main.py analyse "ERP_Export.xlsx"   # explizite Datei
+python main.py                               # Dateiauswahl-Dialog
+```
+
+Solange keine GUI existiert, delegiert `app.run` an diese CLI. Die Ausgabedatei
+ist immer neu; das Original wird nie verändert.
 
 ### Neue Sachgruppe ergänzen
 

@@ -16,6 +16,7 @@ import pytest
 MODULES = [
     "avor_smart_attribute_manager",
     "avor_smart_attribute_manager.app",
+    "avor_smart_attribute_manager.cli",
     "avor_smart_attribute_manager.config",
     "avor_smart_attribute_manager.config.settings",
     "avor_smart_attribute_manager.models",
