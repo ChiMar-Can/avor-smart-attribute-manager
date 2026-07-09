@@ -1,0 +1,7 @@
+# Entwicklungsabhängigkeiten (Tests, Linting, Typprüfung).
+# Laufzeitabhängigkeiten stehen in requirements.txt.
+-r requirements.txt
+
+pytest
+ruff
+mypy
