@@ -1,0 +1,135 @@
+"""Laden und Repräsentation des Sachgruppen-/Attribut-Regelwerks.
+
+Das Regelwerk legt je Sachgruppenklasse fest, welche Attribute erlaubt bzw.
+relevant sind. Es wird bewusst **nicht** hart im Code hinterlegt, sondern aus
+einer Konfigurationsdatei (Standard: ``config/attribute_rules.json`` im Paket)
+geladen, damit es ohne Codeänderung erweitert werden kann.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Mapping
+from dataclasses import dataclass
+from importlib import resources
+from pathlib import Path
+
+#: Ressourcenpaket, in dem das mitgelieferte Standard-Regelwerk liegt.
+_DEFAULT_RULES_PACKAGE = "avor_smart_attribute_manager.config"
+
+#: Dateiname des mitgelieferten Standard-Regelwerks.
+_DEFAULT_RULES_FILENAME = "attribute_rules.json"
+
+
+class InvalidRulesError(ValueError):
+    """Wird ausgelöst, wenn die Regelwerksdatei strukturell ungültig ist."""
+
+
+@dataclass(frozen=True)
+class AttributeRules:
+    """Repräsentiert das geladene Regelwerk.
+
+    Attributes:
+        rules_by_sachgruppe: Zuordnung von Sachgruppenklasse zu der Menge der
+            erlaubten/relevanten Attributnamen.
+    """
+
+    rules_by_sachgruppe: Mapping[str, frozenset[str]]
+
+    def is_known(self, sachgruppe: str) -> bool:
+        """Prüft, ob eine Sachgruppenklasse im Regelwerk hinterlegt ist.
+
+        Args:
+            sachgruppe: Zu prüfende Sachgruppenklasse.
+
+        Returns:
+            ``True``, wenn die Sachgruppe bekannt ist, sonst ``False``.
+        """
+        return sachgruppe in self.rules_by_sachgruppe
+
+    def allowed_for(self, sachgruppe: str) -> frozenset[str]:
+        """Liefert die erlaubten Attribute einer Sachgruppenklasse.
+
+        Args:
+            sachgruppe: Sachgruppenklasse, deren erlaubte Attribute gesucht
+                werden.
+
+        Returns:
+            Die Menge der erlaubten Attributnamen; eine leere Menge, wenn die
+            Sachgruppe unbekannt ist.
+        """
+        return self.rules_by_sachgruppe.get(sachgruppe, frozenset())
+
+    @property
+    def known_sachgruppen(self) -> frozenset[str]:
+        """Alle im Regelwerk hinterlegten Sachgruppenklassen."""
+        return frozenset(self.rules_by_sachgruppe)
+
+
+def _parse_rules(data: object) -> AttributeRules:
+    """Wandelt die geladenen JSON-Daten in :class:`AttributeRules` um.
+
+    Args:
+        data: Bereits deserialisierter Inhalt der Regelwerksdatei.
+
+    Returns:
+        Das validierte Regelwerk.
+
+    Raises:
+        InvalidRulesError: Wenn die Struktur nicht dem erwarteten Schema
+            entspricht.
+    """
+    if not isinstance(data, dict):
+        raise InvalidRulesError("Regelwerk muss ein JSON-Objekt sein.")
+
+    sachgruppen = data.get("sachgruppen")
+    if not isinstance(sachgruppen, dict):
+        raise InvalidRulesError("Feld 'sachgruppen' muss ein JSON-Objekt sein.")
+
+    rules: dict[str, frozenset[str]] = {}
+    for sachgruppe, definition in sachgruppen.items():
+        if not isinstance(definition, dict):
+            raise InvalidRulesError(
+                f"Definition der Sachgruppe '{sachgruppe}' muss ein Objekt sein."
+            )
+        allowed = definition.get("allowed_attributes")
+        if not isinstance(allowed, list) or not all(
+            isinstance(item, str) for item in allowed
+        ):
+            raise InvalidRulesError(
+                f"'allowed_attributes' der Sachgruppe '{sachgruppe}' muss eine "
+                "Liste von Zeichenketten sein."
+            )
+        rules[sachgruppe] = frozenset(allowed)
+
+    return AttributeRules(rules_by_sachgruppe=rules)
+
+
+def load_attribute_rules(path: Path | None = None) -> AttributeRules:
+    """Lädt das Regelwerk aus einer JSON-Datei.
+
+    Args:
+        path: Optionaler Pfad zu einer Regelwerksdatei. Ohne Angabe wird das im
+            Paket mitgelieferte Standard-Regelwerk geladen.
+
+    Returns:
+        Das validierte Regelwerk.
+
+    Raises:
+        InvalidRulesError: Wenn die Datei kein gültiges JSON enthält oder nicht
+            dem erwarteten Schema entspricht.
+    """
+    if path is None:
+        source = resources.files(_DEFAULT_RULES_PACKAGE).joinpath(
+            _DEFAULT_RULES_FILENAME
+        )
+        raw = source.read_text(encoding="utf-8")
+    else:
+        raw = Path(path).read_text(encoding="utf-8")
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise InvalidRulesError(f"Regelwerk ist kein gültiges JSON: {error}") from error
+
+    return _parse_rules(data)

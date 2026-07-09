@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "description": "Regelwerk je SACHGRUPPENKLASSE: definiert die erlaubten/relevanten Attribute. Bitte mit den realen Sachgruppen und Attributnamen der ERP-Stammdaten befuellen. Attributnamen entsprechen den normalisierten Spaltennamen (siehe docs/architecture.md).",
+  "sachgruppen": {}
+}

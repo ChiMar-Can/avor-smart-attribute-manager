@@ -1,31 +1,84 @@
-"""Regelwerk und Regelauswertung.
+"""Regelauswertung je Artikel.
 
-Platzhalter für die Regelausführung. Vorgesehen ist ein leichtgewichtiger
-Mechanismus, der einzelne Regeln auf die Daten anwendet und die Ergebnisse
-(Regelverstösse samt Begründung) einheitlich zurückgibt.
+Wendet das Sachgruppen-/Attribut-Regelwerk (siehe
+:mod:`avor_smart_attribute_manager.rules.attribute_rules`) auf Artikel an und
+erzeugt ein nachvollziehbares Prüfergebnis.
 
-Designidee für die spätere Umsetzung:
+Grundregeln:
 
-* Jede Regel ist eine klar abgegrenzte, einzeln testbare Einheit.
-* Neue Regeln lassen sich hinzufügen, ohne bestehende zu verändern.
-
-Die konkreten Regeln und Datenstrukturen werden bewusst noch nicht festgelegt.
+* Es werden **keine** Werte verändert – nur geprüft.
+* Für jeden Artikel wird festgestellt, ob die Sachgruppe bekannt ist, welche
+  erlaubten Attribute fehlen und welche nicht vorgesehenen Attribute gefüllt
+  sind.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 
-def evaluate(data: object) -> object:
-    """Wendet die Regeln auf die Daten an.
+from avor_smart_attribute_manager.models.article import Article
+from avor_smart_attribute_manager.models.validation import (
+    ArticleValidationResult,
+    CheckStatus,
+)
+from avor_smart_attribute_manager.rules.attribute_rules import AttributeRules
+
+
+def validate_article(article: Article, rules: AttributeRules) -> ArticleValidationResult:
+    """Prüft einen einzelnen Artikel gegen das Regelwerk.
+
+    Ein Attribut gilt als *gefüllt*, wenn sein Wert nicht ``None`` ist. Leere
+    Werte werden bereits beim Import zu ``None`` vereinheitlicht.
 
     Args:
-        data: Die zu prüfenden Artikel-/Attributdaten.
+        article: Der zu prüfende Artikel.
+        rules: Das anzuwendende Regelwerk.
 
     Returns:
-        Später eine Sammlung nachvollziehbarer Regelverstösse/Vorschläge.
-
-    Raises:
-        NotImplementedError: Solange die Regelprüfung noch nicht implementiert
-            ist.
+        Das strukturierte Prüfergebnis des Artikels.
     """
-    raise NotImplementedError("Regelprüfung ist noch nicht implementiert.")
+    if not rules.is_known(article.sachgruppenklasse):
+        return ArticleValidationResult(
+            article_number=article.article_number,
+            sachgruppenklasse=article.sachgruppenklasse,
+            allowed_attributes=(),
+            missing_attributes=(),
+            disallowed_filled_attributes=(),
+            status=CheckStatus.UNKNOWN_SACHGRUPPE,
+        )
+
+    allowed = rules.allowed_for(article.sachgruppenklasse)
+    filled = {name for name, value in article.attributes.items() if value is not None}
+
+    missing = allowed - filled
+    disallowed_filled = filled - allowed
+
+    status = (
+        CheckStatus.OK
+        if not missing and not disallowed_filled
+        else CheckStatus.ISSUES_FOUND
+    )
+
+    return ArticleValidationResult(
+        article_number=article.article_number,
+        sachgruppenklasse=article.sachgruppenklasse,
+        allowed_attributes=tuple(sorted(allowed)),
+        missing_attributes=tuple(sorted(missing)),
+        disallowed_filled_attributes=tuple(sorted(disallowed_filled)),
+        status=status,
+    )
+
+
+def validate_articles(
+    articles: Iterable[Article], rules: AttributeRules
+) -> list[ArticleValidationResult]:
+    """Prüft mehrere Artikel gegen das Regelwerk.
+
+    Args:
+        articles: Die zu prüfenden Artikel.
+        rules: Das anzuwendende Regelwerk.
+
+    Returns:
+        Liste der Prüfergebnisse in der Reihenfolge der Eingabe.
+    """
+    return [validate_article(article, rules) for article in articles]
