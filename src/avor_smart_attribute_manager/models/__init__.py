@@ -11,10 +11,17 @@ Vorteil einer eigenen Modellschicht:
   oder PySide6).
 * Erlaubt typsichere Schnittstellen zwischen den Modulen.
 
-Konkrete Felder werden bewusst noch nicht festgelegt, um keine Annahmen über
-die reale ERP-Datenstruktur zu treffen.
+Aktuell definiert: :class:`~avor_smart_attribute_manager.models.article.Article`
+sowie die Prüfergebnisse in
+:mod:`avor_smart_attribute_manager.models.validation`.
 """
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from avor_smart_attribute_manager.models.article import Article
+from avor_smart_attribute_manager.models.validation import (
+    ArticleValidationResult,
+    CheckStatus,
+)
+
+__all__ = ["Article", "ArticleValidationResult", "CheckStatus"]
