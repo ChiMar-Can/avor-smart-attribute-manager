@@ -92,36 +92,118 @@ avor-smart-attribute-manager/
 | `ai` | Optionale, klar gekapselte KI-Unterstützung für Vorschläge. Aktuell nicht implementiert. |
 | `tests` | Automatisierte Tests; spiegeln die Paketstruktur wider. |
 
-## Datenfluss (vorgesehen)
+## Datenfluss
 
-Der geplante Ablauf verdeutlicht das Zusammenspiel der Module. Er ist noch
-**nicht** implementiert und dient als Orientierung:
+Der Ablauf verdeutlicht das Zusammenspiel der Module. Die Schritte
+**Import**, **Regelwerk** und **Regelprüfung** sind implementiert; die übrigen
+sind vorgesehen:
 
 ```
 ERP-Excel-Export (nur lesen)
         │
         ▼
-   excel.importer  ──►  models  ◄──────────────┐
-        │                                       │
-        ▼                                       │
-   analysis  +  rules   (nutzen models)         │
-        │                                       │
-        │   (optional, später)                  │
-        ▼                                       │
-   manufacturers ──► datasources                │
-        │                                       │
-        ▼                                       │
-   ai (optional, nur Vorschläge)                │
-        │                                       │
-        ▼                                       │
-   Vorschläge/Befunde (models) ────────────────┘
+   excel.importer  ──►  models.Article  ◄────────┐   [implementiert]
+        │                                         │
+        ▼                                         │
+   rules (Regelwerk + Regelprüfung)              │   [implementiert]
+   analysis.attribute_analyzer (Orchestrierung)  │   [implementiert]
+        │                                         │
+        │   (optional, später)                    │
+        ▼                                         │
+   manufacturers ──► datasources                  │
+        │                                         │
+        ▼                                         │
+   ai (optional, nur Vorschläge)                  │
+        │                                         │
+        ▼                                         │
+   models.ArticleValidationResult ───────────────┘
         │
-        ├──►  gui   (Anzeige, Auswahl)
-        └──►  excel.exporter  ──►  NEUE Excel-Datei
+        ├──►  gui   (Anzeige, Auswahl)            [später]
+        └──►  excel.exporter  ──►  NEUE Excel-Datei [später]
 ```
 
 Die GUI ruft die Fachmodule auf und stellt deren Ergebnisse dar. Die
 Fachmodule kennen die GUI nicht und sind dadurch unabhängig testbar.
+
+## Import und Regelprüfung (aktueller Funktionsstand)
+
+### Excel-Import
+
+`excel.importer` liest ERP-Exporte **ausschliesslich lesend** ein
+(`read_workbook`), normalisiert die Spaltennamen (`normalize_dataframe`) und
+überführt die Zeilen in `models.Article` (`to_articles`). `load_articles`
+bündelt diese Schritte.
+
+- **Basisspalten:** `ARTIKELNUMMER` und `SACHGRUPPENKLASSE` müssen vorhanden
+  sein, sonst wird `MissingBaseColumnsError` ausgelöst.
+- **Spaltennormalisierung:** Nur die in
+  `excel.columns.COLUMN_RENAME_MAP` hinterlegten Attributspalten werden
+  umbenannt (z. B. `Dimmension` → `Dimension`, `SMD-Bauform` → `SmdBauform`).
+  Basisspalten bleiben unverändert.
+- **Leere Werte** (`None`, `NaN`, leere/whitespace-Strings) werden zu `None`
+  vereinheitlicht, damit nachgelagerte Prüfungen ohne pandas-Kenntnis
+  auskommen.
+
+### Regelwerk
+
+Das Regelwerk legt je `SACHGRUPPENKLASSE` fest, welche Attribute erlaubt bzw.
+relevant sind. Es steht **nicht** hart im Code, sondern in einer
+Konfigurationsdatei und wird über `rules.load_attribute_rules` geladen.
+
+- **Ort der Regeln:** `src/avor_smart_attribute_manager/config/attribute_rules.json`
+  (als Paketdaten mitgeliefert). Alternativ kann `load_attribute_rules(path)`
+  eine externe Datei laden.
+- **Schema:**
+
+  ```json
+  {
+    "version": 1,
+    "sachgruppen": {
+      "<SACHGRUPPENKLASSE>": {
+        "allowed_attributes": ["<AttributName>", "..."]
+      }
+    }
+  }
+  ```
+
+  Beispiel (nur zur Veranschaulichung, keine realen Firmendaten):
+
+  ```json
+  {
+    "version": 1,
+    "sachgruppen": {
+      "WIDERSTAND": { "allowed_attributes": ["Dimension", "Widerstandattribut"] }
+    }
+  }
+  ```
+
+- **Attributnamen** entsprechen den **normalisierten** Spaltennamen (siehe
+  `COLUMN_RENAME_MAP`).
+- Das mitgelieferte Standard-Regelwerk ist **leer** (`"sachgruppen": {}`) und
+  muss mit den realen Sachgruppen/Attributen befüllt werden.
+
+### Regelprüfung und Ergebnis
+
+`rules.rule_engine` prüft je Artikel gegen das Regelwerk (`validate_article` /
+`validate_articles`) und liefert `models.ArticleValidationResult` mit:
+
+- `article_number`, `sachgruppenklasse`,
+- `allowed_attributes` (für die Sachgruppe erlaubt),
+- `missing_attributes` (erlaubt, aber leer/fehlend),
+- `disallowed_filled_attributes` (gefüllt, aber nicht vorgesehen),
+- `status` (`OK`, `UNKNOWN_SACHGRUPPE`, `ISSUES_FOUND`).
+
+Es werden **keine** Werte verändert – nur geprüft.
+
+### Neue Sachgruppe ergänzen
+
+1. In `config/attribute_rules.json` unter `sachgruppen` einen neuen Eintrag mit
+   dem exakten `SACHGRUPPENKLASSE`-Wert anlegen.
+2. Unter `allowed_attributes` die relevanten (normalisierten) Attributnamen
+   auflisten.
+3. Kommt eine neue ERP-Attributspalte mit abweichender Schreibweise hinzu,
+   zusätzlich eine Zuordnung in `excel.columns.COLUMN_RENAME_MAP` ergänzen.
+4. Kein Code der Regelprüfung muss geändert werden.
 
 ## Abhängigkeitsrichtung
 
@@ -167,7 +249,12 @@ Siehe `README.md` für die konkreten Befehle.
 Diese Punkte wurden bewusst offen gelassen, um keine verfrühten Annahmen zu
 treffen (Details siehe Pull-Request-Beschreibung):
 
-- Konkrete Struktur der ERP-Exporte (Spalten, Attribute) ist noch unbekannt;
-  daher enthalten `models` noch keine konkreten Felder.
-- Konkrete Qualitätskriterien und Regeln sind noch nicht definiert.
+- Als Basisspalten werden `ARTIKELNUMMER` und `SACHGRUPPENKLASSE` angenommen;
+  bei abweichenden Bezeichnungen sind `excel.columns` und ggf. der Import
+  anzupassen.
+- Das Regelwerk (`config/attribute_rules.json`) wird leer ausgeliefert und muss
+  mit den realen Sachgruppen/Attributen befüllt werden (keine Firmendaten im
+  Repository).
+- Alle erlaubten Attribute gelten aktuell als relevant (fehlend = leer). Eine
+  Unterscheidung „Pflicht vs. optional“ ist bewusst noch nicht umgesetzt.
 - Externe Datenquellen und KI-Anbindung sind bewusst noch nicht umgesetzt.
