@@ -67,14 +67,19 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Start der Anwendung (sobald implementiert):
+Analyse einer ERP-Excel-Datei (Kommandozeile):
 
 ```bash
-python -m avor_smart_attribute_manager
+python main.py analyse "ERP_Export.xlsx"
+# oder ohne Argument mit Dateiauswahl-Dialog:
+python main.py
+# gleichwertig als Modulaufruf:
+python -m avor_smart_attribute_manager analyse "ERP_Export.xlsx"
 ```
 
-> Hinweis: Das Projekt befindet sich am Anfang. Die Module sind derzeit
-> dokumentierte Platzhalter; der Programmstart ist noch nicht implementiert.
+Die Eingabedatei wird **ausschliesslich gelesen**. Das Ergebnis wird als neue
+Datei `<Dateiname>_analyse.xlsx` daneben geschrieben (siehe unten). Eine GUI
+gibt es noch nicht.
 
 ## Entwicklungsumgebung
 
@@ -121,6 +126,26 @@ for result in results:
   und nicht von Hand gepflegt).
 - **Ergebnis:** je Artikel Status (`OK`, `UNKNOWN_SACHGRUPPE`, `ISSUES_FOUND`)
   sowie fehlende bzw. unzulässig gefüllte Attribute.
+
+### Analysedatei (`<Dateiname>_analyse.xlsx`)
+
+Der CLI-Befehl `analyse` schreibt eine **neue** Excel-Datei; die Originaldatei
+bleibt unverändert. Tabellenblatt `Analyse` enthält **alle Originalspalten**
+plus folgende angefügte Spalten (Listen kommagetrennt):
+
+| Spalte | Inhalt |
+| --- | --- |
+| `Pruefstatus` | `OK` / `Unbekannte Sachgruppe` / `Fehler gefunden` |
+| `Erlaubte_Attribute` | laut Regelwerk erlaubte Attribute |
+| `Gefuellte_Attribute` | tatsächlich befüllte Attribute |
+| `Fehlende_Attribute` | erlaubte, aber leere/fehlende Attribute |
+| `Nicht_erlaubte_gefuellte_Attribute` | befüllt, obwohl nicht vorgesehen |
+| `Anzahl_fehlender_Attribute` | Anzahl fehlender Attribute |
+| `Anzahl_unzulaessiger_Attribute` | Anzahl unzulässig gefüllter Attribute |
+
+Zusätzlich fasst das Tabellenblatt `Zusammenfassung` die Kennzahlen zusammen
+(Anzahl Artikel, OK, unbekannte Sachgruppen, Artikel mit fehlenden bzw.
+unzulässigen Attributen).
 
 ### Attributregeln pflegen
 
