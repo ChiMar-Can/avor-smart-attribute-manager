@@ -37,6 +37,10 @@ avor-smart-attribute-manager = "avor_smart_attribute_manager.__main__:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+# Das Regelwerk wird als Paketdaten mitgeliefert.
+"avor_smart_attribute_manager" = ["config/*.json"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
@@ -60,6 +64,12 @@ packages = ["avor_smart_attribute_manager"]
 mypy_path = "src"
 strict = true
 warn_unused_configs = true
+
+# pandas liefert keine mit mypy nutzbaren Typinformationen mit; auf zusätzliche
+# Stub-Pakete wird bewusst verzichtet.
+[[tool.mypy.overrides]]
+module = ["pandas.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

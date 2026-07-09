@@ -1,0 +1,326 @@
+{
+  "version": 1,
+  "description": "Automatisch aus dem Attribut-Katalog generiert. Nicht manuell bearbeiten – stattdessen den Katalog pflegen und neu generieren (siehe README).",
+  "sachgruppen": {
+    "Allgemein": {
+      "allowed_attributes": [
+        "Technologie",
+        "Typ",
+        "Dimension",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Diode": {
+      "allowed_attributes": [
+        "Technologie",
+        "Typ",
+        "Bauform",
+        "Wert",
+        "Toleranz",
+        "Spannung",
+        "Strom",
+        "Leistung",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Display": {
+      "allowed_attributes": [
+        "Technologie",
+        "Typ",
+        "Bauform",
+        "Wert",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Diverse": {
+      "allowed_attributes": [
+        "Technologie",
+        "Typ",
+        "Dimension",
+        "Mass",
+        "Wert",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Etiketten Schilder": {
+      "allowed_attributes": [
+        "Technologie",
+        "Typ",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Feder": {
+      "allowed_attributes": [
+        "Technologie",
+        "Typ",
+        "Dimension",
+        "Laengeattribut",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Ferrit Induktion Filter": {
+      "allowed_attributes": [
+        "Technologie",
+        "Typ",
+        "Bauform",
+        "Wert",
+        "Toleranz",
+        "Spannung",
+        "Strom",
+        "Leistung",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "IC": {
+      "allowed_attributes": [
+        "Technologie",
+        "Typ",
+        "Bauform",
+        "Wert",
+        "Toleranz",
+        "Spannung",
+        "Strom",
+        "Leistung",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Kabel": {
+      "allowed_attributes": [
+        "Technologie",
+        "Typ",
+        "Laengeattribut",
+        "Bemerkung"
+      ]
+    },
+    "Kondensator": {
+      "allowed_attributes": [
+        "Technologie",
+        "Typ",
+        "Bauform",
+        "Wert",
+        "Toleranz",
+        "Spannung",
+        "Dielektrikum",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Leiterplatte": {
+      "allowed_attributes": [
+        "Nutzengroesse",
+        "Bemerkung"
+      ]
+    },
+    "Mechanik PCB": {
+      "allowed_attributes": [
+        "Technologie",
+        "Typ",
+        "Wert",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Optoelektronik": {
+      "allowed_attributes": [
+        "Technologie",
+        "Typ",
+        "Bauform",
+        "Wert",
+        "Min.-Current-Transfer-Ratio",
+        "Spannung",
+        "Strom",
+        "Leistung",
+        "Frequenz",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "O-Ring": {
+      "allowed_attributes": [
+        "Art",
+        "Dicke",
+        "Dimension",
+        "Bemerkung"
+      ]
+    },
+    "PCB Layout": {
+      "allowed_attributes": [
+        "Typ",
+        "Technologie",
+        "Wert",
+        "Bemerkung"
+      ]
+    },
+    "Quarz Oszillator Resonator": {
+      "allowed_attributes": [
+        "Technologie",
+        "Typ",
+        "Bauform",
+        "Wert",
+        "Toleranz",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Relais": {
+      "allowed_attributes": [
+        "Technologie",
+        "Bauform",
+        "Typ",
+        "Wert",
+        "Spannungprimaer",
+        "Stromprimaer",
+        "Spannungsekundaer",
+        "Stromsekundaer",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Schraube Mutter Scheibe": {
+      "allowed_attributes": [
+        "Technologie",
+        "Art",
+        "Typ",
+        "Dimension",
+        "Laengeattribut",
+        "Dicke",
+        "Bemerkung"
+      ]
+    },
+    "Sicherung": {
+      "allowed_attributes": [
+        "Technologie",
+        "Bauform",
+        "Typ",
+        "Wert",
+        "Spannung",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Signalgeber": {
+      "allowed_attributes": [
+        "Technologie",
+        "Bauform",
+        "Typ",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Standard": {
+      "allowed_attributes": [
+        "Technologie",
+        "Bauform",
+        "Gehäuse",
+        "Wert",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Taster Schalter": {
+      "allowed_attributes": [
+        "Technologie",
+        "Bauform",
+        "Typ",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Thyristor Diac Triac": {
+      "allowed_attributes": [
+        "Technologie",
+        "Typ",
+        "Bauform",
+        "Wert",
+        "Toleranz",
+        "Spannung",
+        "Strom",
+        "Leistung",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Trafo": {
+      "allowed_attributes": [
+        "Technologie",
+        "Bauform",
+        "Typ",
+        "Spannungprimaer",
+        "Spannungsekundaer",
+        "Spannung Isolation",
+        "Frequenz",
+        "Verhältnis",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Transistor": {
+      "allowed_attributes": [
+        "Technologie",
+        "Typ",
+        "Bauform",
+        "Wert",
+        "Toleranz",
+        "Spannung",
+        "Strom",
+        "Leistung",
+        "Widerstandattribut",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Verbinder": {
+      "allowed_attributes": [
+        "Technologie",
+        "Bauform",
+        "Typ",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    },
+    "Widerstand": {
+      "allowed_attributes": [
+        "Technologie",
+        "Typ",
+        "Bauform",
+        "Wert",
+        "Toleranz",
+        "Spannung",
+        "Strom",
+        "Leistung",
+        "Bemerkung",
+        "SmdBauform",
+        "Feeder"
+      ]
+    }
+  }
+}
