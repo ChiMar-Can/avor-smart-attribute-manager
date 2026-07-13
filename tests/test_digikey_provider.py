@@ -310,6 +310,26 @@ def test_invalid_json_is_api_error() -> None:
     assert result.status is ProviderResponseStatus.API_ERROR
 
 
+def test_not_subscribed_detail_is_surfaced() -> None:
+    # Reales Fehlerbild: OAuth ok, aber App nicht für die API freigeschaltet.
+    session = _FakeSession(
+        [
+            lambda: _FakeResponse(
+                401,
+                {
+                    "status": 401,
+                    "detail": "You are not subscribed to this API.",
+                },
+            )
+        ]
+    )
+    result = _provider(session, max_retries=0).search_exact("RC0805FR-071KL")
+
+    assert result.status is ProviderResponseStatus.API_ERROR
+    assert result.error_message is not None
+    assert "not subscribed" in result.error_message
+
+
 def test_secret_never_leaks_into_error_message() -> None:
     secret = "SUPERSECRET"
 

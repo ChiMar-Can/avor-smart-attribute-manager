@@ -269,6 +269,32 @@ class DigiKeyProvider(ComponentDataProvider):
         self._access_token = None
         self._token_expires_at = 0.0
 
+    def _error_detail(self, response: requests.Response) -> str:
+        """Liest eine kurze, redigierte Fehlerbeschreibung aus der Antwort.
+
+        DigiKey liefert bei Fehlern eine erklärende Meldung (V4: ``detail``,
+        V3: ``ErrorMessage``). Diese wird – ohne Zugangsdaten – an die Statusmeldung
+        angehängt, damit z. B. eine fehlende API-Subscription direkt erkennbar ist.
+
+        Args:
+            response: Die HTTP-Fehlerantwort.
+
+        Returns:
+            Eine mit führendem Leerzeichen versehene, redigierte Detailmeldung
+            oder ein leerer String.
+        """
+        try:
+            body = response.json()
+        except ValueError:
+            return ""
+        if isinstance(body, dict):
+            detail = _optional_str(body.get("detail")) or _optional_str(
+                body.get("ErrorMessage")
+            )
+            if detail is not None:
+                return f" {self._redact(detail)}"
+        return ""
+
     # -- Versionsabhängige Endpunkte/Parser -----------------------------
 
     def _search_endpoint(self) -> str:
@@ -420,8 +446,12 @@ class DigiKeyProvider(ComponentDataProvider):
                 else:
                     if response.status_code == 401:
                         # Token evtl. abgelaufen: verwerfen und erneut versuchen.
+                        detail = self._error_detail(response)
                         self._invalidate_token()
-                        last_error = "DigiKey-API: Authentifizierung abgelehnt (HTTP 401)."
+                        last_error = (
+                            "DigiKey-API: Authentifizierung abgelehnt (HTTP 401)."
+                            f"{detail}"
+                        )
                     elif response.status_code == 429:
                         rate_limited = True
                         last_error = "Rate-Limit erreicht (HTTP 429)."
@@ -436,7 +466,7 @@ class DigiKeyProvider(ComponentDataProvider):
                             status=ProviderResponseStatus.API_ERROR,
                             error_message=(
                                 f"DigiKey-API antwortete mit HTTP "
-                                f"{response.status_code}."
+                                f"{response.status_code}.{self._error_detail(response)}"
                             ),
                         )
                     else:

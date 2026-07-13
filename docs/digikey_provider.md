@@ -6,13 +6,40 @@ API-Versionen **V3** und **V4** sowie eine Bewertung, welche Version sich für
 unseren Anwendungsfall (strukturierte technische Attributvorschläge) besser
 eignet.
 
-> **Status der Bewertung:** Die unten stehende Einschätzung stützt sich auf die
-> öffentlich dokumentierten Schemata beider API-Versionen und auf die in den
-> Tests hinterlegten, anonymisierten Antwort-Fixtures. Ein realer
-> Ende-zu-Ende-Test wurde **noch nicht** durchgeführt, weil in dieser Umgebung
-> **keine DigiKey-Zugangsdaten** vorlagen (`DIGIKEY_CLIENT_ID` /
-> `DIGIKEY_CLIENT_SECRET`). Sobald Zugangsdaten vorhanden sind, kann der
-> manuelle E2E-Lauf (siehe unten) die Bewertung bestätigen bzw. präzisieren.
+> **Status der Bewertung:** Die Einschätzung stützt sich auf die öffentlich
+> dokumentierten Schemata beider API-Versionen, die in den Tests hinterlegten
+> anonymisierten Antwort-Fixtures **sowie einen realen Verbindungs-/Auth-Test**
+> (siehe Abschnitt „Ergebnis des Live-Tests“). Die inhaltliche
+> Parameterabdeckung je Sachgruppe konnte **noch nicht** live bestätigt werden,
+> weil der verwendete DigiKey-Account **nicht für die Product Information API
+> freigeschaltet** war (HTTP 401, „not subscribed“). Nach Freischaltung kann der
+> manuelle E2E-Lauf (siehe unten) die Bewertung präzisieren.
+
+## Ergebnis des Live-Tests (anonymisiert)
+
+Ein realer Lauf über eine ERP-Beispieldatei (18 Artikel) mit temporären
+Zugangsdaten hat gezeigt:
+
+- **OAuth2 (Client Credentials) funktioniert:** Der Token-Endpunkt
+  (`POST /v1/oauth2/token`, Produktion) lieferte HTTP 200 inkl. `access_token`
+  und `expires_in`.
+- **Die Produktsuche wurde jedoch mit HTTP 401 abgelehnt** – sowohl V4
+  (`detail: "You are not subscribed to this API."`) als auch V3. Ursache ist eine
+  **fehlende API-Subscription** des DigiKey-Accounts (nicht ein Code-Fehler).
+- **Der Provider verhielt sich korrekt und robust:** Token wurde geholt, der
+  401-Status sauber als `API-Fehler` je Artikel dokumentiert, die übrigen Artikel
+  weiter verarbeitet; Zugangsdaten wurden **nicht** ausgegeben. Die
+  DigiKey-Detailmeldung wird (redigiert) in die Spalte `Meldung` übernommen,
+  sodass die Ursache direkt erkennbar ist.
+- **Konsequenz:** Verbindung, Authentifizierung und die gesamte Integration
+  (CLI-Auswahl, Fehlerbehandlung, Redaktion) sind live bestätigt. Die
+  tatsächlich gelieferten strukturierten Parameter je Sachgruppe stehen weiterhin
+  unter dem Vorbehalt eines Laufs mit **freigeschaltetem** API-Zugang.
+
+**Zur Freischaltung:** Im DigiKey-Entwicklerportal
+(<https://developer.digikey.com/> → *My Apps*) die App der **Product
+Information API** (Production, gewünschte Version) zuweisen/abonnieren. Danach den
+Live-Lauf (siehe unten) wiederholen.
 
 ## Architektur
 
