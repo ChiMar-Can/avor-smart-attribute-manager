@@ -20,6 +20,22 @@ from avor_smart_attribute_manager.datasources.cache import (
     DEFAULT_CACHE_DIR,
     DEFAULT_TTL_SECONDS,
 )
+from avor_smart_attribute_manager.datasources.digikey import (
+    API_VERSION_ENV_VAR,
+    DigiKeyApiVersion,
+)
+from avor_smart_attribute_manager.datasources.digikey import (
+    BASE_URL_ENV_VAR as DIGIKEY_BASE_URL_ENV_VAR,
+)
+from avor_smart_attribute_manager.datasources.digikey import (
+    CLIENT_ID_ENV_VAR as DIGIKEY_CLIENT_ID_ENV_VAR,
+)
+from avor_smart_attribute_manager.datasources.digikey import (
+    CLIENT_SECRET_ENV_VAR as DIGIKEY_CLIENT_SECRET_ENV_VAR,
+)
+from avor_smart_attribute_manager.datasources.digikey import (
+    DEFAULT_BASE_URL as DIGIKEY_DEFAULT_BASE_URL,
+)
 from avor_smart_attribute_manager.datasources.mouser import (
     API_KEY_ENV_VAR,
     DEFAULT_BACKOFF_SECONDS,
@@ -27,13 +43,26 @@ from avor_smart_attribute_manager.datasources.mouser import (
     DEFAULT_TIMEOUT_SECONDS,
 )
 
+#: Name der Umgebungsvariable zur Auswahl der Datenquelle (``mouser``/``digikey``).
+PROVIDER_ENV_VAR = "AVOR_PROVIDER"
+
+#: Unterstützte Providernamen für die Auswahl.
+MOUSER_PROVIDER = "mouser"
+DIGIKEY_PROVIDER = "digikey"
+SUPPORTED_PROVIDERS: tuple[str, ...] = (MOUSER_PROVIDER, DIGIKEY_PROVIDER)
+
 
 @dataclass(frozen=True)
 class Settings:
     """Typisierte Anwendungseinstellungen.
 
     Attributes:
+        provider: Ausgewählte Datenquelle (``"mouser"`` oder ``"digikey"``).
         mouser_api_key: API-Schlüssel für Mouser (``None``, wenn nicht gesetzt).
+        digikey_client_id: DigiKey-Client-ID (``None``, wenn nicht gesetzt).
+        digikey_client_secret: DigiKey-Client-Secret (``None``, wenn nicht gesetzt).
+        digikey_api_version: Verwendete DigiKey-API-Version (V3 oder V4).
+        digikey_base_url: Basis-URL der DigiKey-API (Produktion/Sandbox).
         request_timeout: Timeout je API-Anfrage in Sekunden.
         max_retries: Zusätzliche Wiederholungen bei temporären Fehlern.
         backoff_seconds: Basiswert für exponentiellen Backoff.
@@ -42,7 +71,12 @@ class Settings:
         use_cache: Ob der lokale Cache genutzt werden soll.
     """
 
+    provider: str = MOUSER_PROVIDER
     mouser_api_key: str | None = None
+    digikey_client_id: str | None = None
+    digikey_client_secret: str | None = None
+    digikey_api_version: DigiKeyApiVersion = DigiKeyApiVersion.V4
+    digikey_base_url: str = DIGIKEY_DEFAULT_BASE_URL
     request_timeout: float = DEFAULT_TIMEOUT_SECONDS
     max_retries: int = DEFAULT_MAX_RETRIES
     backoff_seconds: float = DEFAULT_BACKOFF_SECONDS
@@ -116,8 +150,32 @@ def load_settings(dotenv_path: Path | None = None) -> Settings:
     api_key = env.get(API_KEY_ENV_VAR, "").strip() or None
     cache_dir_raw = env.get("AVOR_CACHE_DIR", "").strip()
 
+    provider_raw = env.get(PROVIDER_ENV_VAR, MOUSER_PROVIDER).strip().lower()
+    provider = provider_raw if provider_raw in SUPPORTED_PROVIDERS else MOUSER_PROVIDER
+
+    digikey_version_raw = env.get(API_VERSION_ENV_VAR, "").strip()
+    try:
+        digikey_version = (
+            DigiKeyApiVersion.from_str(digikey_version_raw)
+            if digikey_version_raw
+            else DigiKeyApiVersion.V4
+        )
+    except ValueError:
+        digikey_version = DigiKeyApiVersion.V4
+
+    digikey_base_url = (
+        env.get(DIGIKEY_BASE_URL_ENV_VAR, "").strip() or DIGIKEY_DEFAULT_BASE_URL
+    )
+
     return Settings(
+        provider=provider,
         mouser_api_key=api_key,
+        digikey_client_id=env.get(DIGIKEY_CLIENT_ID_ENV_VAR, "").strip() or None,
+        digikey_client_secret=(
+            env.get(DIGIKEY_CLIENT_SECRET_ENV_VAR, "").strip() or None
+        ),
+        digikey_api_version=digikey_version,
+        digikey_base_url=digikey_base_url,
         request_timeout=_get_float(env, "AVOR_REQUEST_TIMEOUT", DEFAULT_TIMEOUT_SECONDS),
         max_retries=_get_int(env, "AVOR_MAX_RETRIES", DEFAULT_MAX_RETRIES),
         backoff_seconds=_get_float(

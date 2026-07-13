@@ -13,8 +13,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from avor_smart_attribute_manager.analysis.online_analyzer import run_online_analysis
-from avor_smart_attribute_manager.config.settings import Settings, load_settings
+from avor_smart_attribute_manager.config.settings import (
+    DIGIKEY_PROVIDER,
+    Settings,
+    load_settings,
+)
 from avor_smart_attribute_manager.datasources.cache import SearchCache
+from avor_smart_attribute_manager.datasources.digikey import DigiKeyProvider
 from avor_smart_attribute_manager.datasources.mouser import MouserProvider
 from avor_smart_attribute_manager.datasources.provider import ComponentDataProvider
 from avor_smart_attribute_manager.excel.exporter import (
@@ -112,17 +117,31 @@ def analyze_and_export(
 
 
 def build_default_provider(settings: Settings) -> ComponentDataProvider:
-    """Erzeugt den Standard-Provider (Mouser) aus den Einstellungen.
+    """Erzeugt den konfigurierten Provider aus den Einstellungen.
+
+    Die Auswahl (Mouser oder DigiKey) erfolgt über ``settings.provider`` und ist
+    damit nicht in der Fachlogik fest verdrahtet. Bei DigiKey wird die ebenfalls
+    konfigurierbare API-Version (V3/V4) verwendet.
 
     Args:
-        settings: Anwendungseinstellungen mit dem API-Schlüssel.
+        settings: Anwendungseinstellungen mit Provider-Auswahl und Zugangsdaten.
 
     Returns:
         Ein konfigurierter :class:`ComponentDataProvider`.
 
     Raises:
-        MissingApiKeyError: Wenn kein API-Schlüssel gesetzt ist.
+        MissingApiKeyError: Wenn die benötigten Zugangsdaten fehlen.
     """
+    if settings.provider == DIGIKEY_PROVIDER:
+        return DigiKeyProvider(
+            settings.digikey_client_id or "",
+            settings.digikey_client_secret or "",
+            version=settings.digikey_api_version,
+            base_url=settings.digikey_base_url,
+            timeout=settings.request_timeout,
+            max_retries=settings.max_retries,
+            backoff_seconds=settings.backoff_seconds,
+        )
     return MouserProvider(
         settings.mouser_api_key or "",
         timeout=settings.request_timeout,
