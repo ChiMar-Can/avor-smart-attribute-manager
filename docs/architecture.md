@@ -296,6 +296,71 @@ ist immer neu; das Original wird nie verändert.
 `config/attribute_rules.json` ist eine generierte Datei und sollte nicht von
 Hand bearbeitet werden.
 
+## Online-Abgleich und Provider-System
+
+Der Online-Abgleich (Attributvorschläge anhand der Herstellerteilenummer) ist
+bewusst providerneutral aufgebaut, damit die Fachlogik nicht an eine konkrete
+Datenquelle (Mouser) gekoppelt ist und weitere Quellen ergänzt werden können.
+
+### Schichten
+
+- **`datasources.provider`** – definiert den Vertrag `ComponentDataProvider`
+  (`search_exact(mpn, manufacturer)`) sowie die neutralen Ergebnismodelle
+  `ProviderProduct` und `ProviderSearchResult` (mit `ProviderResponseStatus`
+  `OK`/`API_ERROR`/`RATE_LIMITED`). Ein fehlender API-Schlüssel ist ein
+  Konfigurationsfehler und wird als `MissingApiKeyError` ausgelöst – technische
+  Laufzeitfehler dagegen nur als Status im Ergebnis abgebildet.
+- **`datasources.mouser`** – erster konkreter Provider (offizielle Mouser
+  Search API, **kein** Scraping). Kennt als einziges Modul die Mouser-Feldnamen
+  und überführt Antworten in `ProviderProduct`. Enthält Timeout, begrenzte
+  Wiederholungen mit exponentiellem Backoff und Rate-Limit-Erkennung.
+- **`datasources.normalization`** – rein **technische** Bereinigung der
+  Herstellerteilenummer (Rand-/unsichtbare Zeichen; Gross-/Kleinschreibung nur
+  für den Vergleich). Es werden **keine** inhaltlichen Bestandteile (Gehäuse-,
+  Verpackungs-, Bestell-Suffixe) entfernt oder interpretiert.
+- **`datasources.cache`** – lokaler Datei-Cache (`.cache/`), getrennt nach
+  Provider und Suchanfrage, mit Zeitstempel und konfigurierbarer TTL. Speichert
+  nur neutrale Produktdaten, **keine** Schlüssel und **keine** Fehlerantworten;
+  jederzeit löschbar.
+- **`analysis.attribute_mapping`** – bildet strukturierte Quellparameter
+  **sachgruppenabhängig** auf erlaubte ERP-Attribute ab. Nur regelkonforme
+  Attribute werden vorgeschlagen; nicht eindeutig zuordenbare Parameter werden
+  verworfen (nichts wird geraten).
+- **`analysis.value_comparison`** – konservative Einheiten-Normalisierung zum
+  Vergleich von ERP- und Online-Werten.
+- **`analysis.online_analyzer`** – Orchestrierung je Artikel: liest
+  `HerstellerNr`/`Hersteller`, führt den exakten Abgleich durch, klassifiziert
+  den `MatchStatus`, leitet die Konfidenz ab und erzeugt Vorschläge. Fehler
+  einzelner Artikel werden isoliert und pro Artikel dokumentiert.
+
+### Match-Klassifizierung und Vorschläge
+
+Ein Treffer gilt nur als sicher, wenn die technisch normalisierte Teilenummer
+exakt übereinstimmt und – sofern im ERP vorhanden – der Hersteller passt. Daraus
+ergeben sich `EXACT_MATCH`, `MULTIPLE_EXACT_MATCHES`, `MANUFACTURER_MISMATCH`,
+`NO_EXACT_MATCH`, `NO_MPN`, `API_ERROR`, `RATE_LIMITED`. Bei mehreren/unsicheren
+Treffern werden Werte nur bei **Konsens** aller Treffer vorgeschlagen (Konfidenz
+`NIEDRIG`). Vorschläge (`ERGAENZEN`/`BESTAETIGT`/`KONFLIKT_PRUEFEN`) verändern
+bestehende ERP-Werte nie; das neutrale `ProductInfo`-Modell hält Roh- und
+Metadaten getrennt von der Ergebnis-Excel.
+
+### Ausgabe und Bedienung
+
+`analysis.attribute_analyzer.analyze_and_export_with_online` erweitert den
+normalen Analyselauf um die Blätter `Online_Vorschlaege` und `Online_Abgleich`
+(`Analyse`/`Zusammenfassung` bleiben erhalten). Bedient wird dies über
+`python main.py analyse <Datei> --online` (Flags `--no-cache`, `--clear-cache`).
+Der API-Schlüssel kommt ausschliesslich aus der Umgebung bzw. einer lokalen,
+nicht versionierten `.env` (`config.settings`).
+
+### Neuen Provider ergänzen
+
+1. Neue Klasse von `ComponentDataProvider` ableiten und `search_exact`
+   implementieren; Antworten in `ProviderProduct` überführen.
+2. Provider-spezifische Feldnamen ausschliesslich im neuen Modul halten.
+3. In `attribute_analyzer.build_default_provider` (oder per Auswahl) einbinden.
+4. Fachlogik (`online_analyzer`, Mapping, Export) bleibt unverändert.
+
 ## Abhängigkeitsrichtung
 
 Um Kopplung gering zu halten, gilt eine klare Abhängigkeitsrichtung:

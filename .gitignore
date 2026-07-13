@@ -147,6 +147,9 @@ activemq-data/
 # SageMath parsed files
 *.sage.py
 
+# Lokaler Cache des Online-Abgleichs (niemals einchecken)
+.cache/
+
 # Environments
 .env
 .envrc

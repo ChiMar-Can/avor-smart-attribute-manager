@@ -10,12 +10,30 @@ Zweck der Abstraktion:
   Schnittstelle ab, nicht von einer konkreten Quelle.
 * Neue Quellen lassen sich ergänzen, ohne bestehenden Code zu ändern.
 
-Wichtige Einschränkung im aktuellen Projektstand: Es werden **noch keine**
-externen APIs angebunden. Dieses Paket definiert vorerst nur die Schnittstelle.
+Konkrete Provider (aktuell: Mouser) implementieren die Schnittstelle
+:class:`ComponentDataProvider` und liefern ihre Ergebnisse ausschliesslich in
+neutralen Datenmodellen. Weitere Provider (z. B. DigiKey, Nexar) lassen sich
+ergänzen, ohne die Fachlogik zu ändern.
 """
 
 from __future__ import annotations
 
 from avor_smart_attribute_manager.datasources.base import DataSource
+from avor_smart_attribute_manager.datasources.provider import (
+    ComponentDataProvider,
+    MissingApiKeyError,
+    ProviderError,
+    ProviderProduct,
+    ProviderResponseStatus,
+    ProviderSearchResult,
+)
 
-__all__ = ["DataSource"]
+__all__ = [
+    "ComponentDataProvider",
+    "DataSource",
+    "MissingApiKeyError",
+    "ProviderError",
+    "ProviderProduct",
+    "ProviderResponseStatus",
+    "ProviderSearchResult",
+]
