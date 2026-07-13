@@ -25,6 +25,15 @@ ARTICLE_NUMBER_ALIASES: tuple[str, ...] = (ARTICLE_NUMBER_COLUMN, "ARTIKEL")
 #: Spalte mit der Sachgruppenklasse, anhand derer das Regelwerk greift.
 SACHGRUPPE_COLUMN = "SACHGRUPPENKLASSE"
 
+#: Spalte mit der Herstellerteilenummer (Primärschlüssel für den Online-Abgleich).
+MANUFACTURER_PART_NUMBER_COLUMN = "HerstellerNr"
+
+#: Spalte mit dem Hersteller (optional, zur Plausibilitätsprüfung).
+MANUFACTURER_COLUMN = "Hersteller"
+
+#: Spalte mit der (Anzeige-)Sachgruppe des Artikels; dient der Nachvollziehbarkeit.
+SACHGRUPPE_LABEL_COLUMN = "SachGruppe"
+
 #: Basisspalten, die in jedem ERP-Export vorhanden sein müssen.
 BASE_COLUMNS: tuple[str, ...] = (ARTICLE_NUMBER_COLUMN, SACHGRUPPE_COLUMN)
 
