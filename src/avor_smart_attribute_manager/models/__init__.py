@@ -19,9 +19,29 @@ sowie die Prüfergebnisse in
 from __future__ import annotations
 
 from avor_smart_attribute_manager.models.article import Article
+from avor_smart_attribute_manager.models.online import (
+    ArticleOnlineStatus,
+    AttributeSuggestion,
+    MatchConfidence,
+    MatchStatus,
+    OnlineAnalysis,
+    ProductInfo,
+    SuggestionAction,
+)
 from avor_smart_attribute_manager.models.validation import (
     ArticleValidationResult,
     CheckStatus,
 )
 
-__all__ = ["Article", "ArticleValidationResult", "CheckStatus"]
+__all__ = [
+    "Article",
+    "ArticleOnlineStatus",
+    "ArticleValidationResult",
+    "AttributeSuggestion",
+    "CheckStatus",
+    "MatchConfidence",
+    "MatchStatus",
+    "OnlineAnalysis",
+    "ProductInfo",
+    "SuggestionAction",
+]
