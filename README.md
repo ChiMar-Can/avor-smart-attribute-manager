@@ -172,6 +172,93 @@ Sachgruppe vorangestellt (Duplikate entfernt, Reihenfolge beibehalten).
 
 Details zu Schema und Ablauf: [`docs/architecture.md`](docs/architecture.md).
 
+## Online-Abgleich über die Herstellerteilenummer (Mouser)
+
+Optional können fehlende oder möglicherweise falsche Attribute anhand der
+`HerstellerNr` **online** abgeglichen werden. Es werden ausschliesslich
+**Vorschläge** erzeugt; ERP-Werte werden **niemals** verändert und **nicht**
+automatisch übernommen. Die manuell gepflegte `Benennung` wird **nicht** als
+Attributquelle verwendet.
+
+Aktuell ist die offizielle **Mouser Search API** angebunden (kein Web-Scraping).
+Die Architektur ist providerneutral; weitere Quellen (DigiKey, Nexar, …) lassen
+sich später ergänzen, ohne die Fachlogik zu ändern.
+
+### Mouser-API-Zugang einrichten
+
+1. Bei Mouser registrieren und unter *Mouser API* einen Zugang für die
+   **Search API** anfordern: <https://www.mouser.com/api-hub/>.
+2. Den erhaltenen API-Schlüssel bereitstellen – **niemals** ins Repository
+   committen. Zwei Möglichkeiten:
+
+   ```bash
+   # Variante A: Umgebungsvariable
+   export MOUSER_API_KEY="dein_schluessel"
+
+   # Variante B: lokale .env-Datei (per .gitignore ausgeschlossen)
+   cp .env.example .env    # anschliessend MOUSER_API_KEY eintragen
+   ```
+
+Fehlt der Schlüssel, bricht der Online-Modus mit einer verständlichen Meldung ab
+(die reine Datenqualitätsanalyse funktioniert weiterhin ohne Schlüssel).
+
+### Online-Abgleich starten
+
+```bash
+python main.py analyse "ERP_Export.xlsx" --online
+# Cache umgehen bzw. vorher leeren:
+python main.py analyse "ERP_Export.xlsx" --online --no-cache
+python main.py analyse "ERP_Export.xlsx" --online --clear-cache
+```
+
+Die Ausgabe erweitert die Analysedatei um zwei Tabellenblätter (die Blätter
+`Analyse` und `Zusammenfassung` bleiben erhalten):
+
+- **`Online_Vorschlaege`** – ein Eintrag je vorgeschlagenem Attribut mit
+  Spalten `ARTIKEL`, `SachGruppe`, `Hersteller`, `HerstellerNr`, `Provider`,
+  `Match_Status`, `Match_Konfidenz`, `Attribut`, `ERP_Wert`, `Vorschlag`,
+  `Aktion`, `Quelle_Produkt`, `Quelle_Datenblatt`, `Begruendung`.
+- **`Online_Abgleich`** – eine Zeile je Artikel mit dem allgemeinen Suchstatus.
+
+### Match-Status
+
+| Status | Bedeutung |
+| --- | --- |
+| `Exakter Treffer` | Teilenummer (technisch normalisiert) und – falls im ERP vorhanden – Hersteller stimmen; genau ein Treffer. |
+| `Mehrere exakte Treffer` | Mehrere passende Datensätze; Werte nur bei Konsens vorgeschlagen. |
+| `Herstellerabweichung` | Teilenummer passt, Hersteller weicht ab. |
+| `Kein exakter Treffer` | Kein Datensatz mit passender Teilenummer. |
+| `Keine Herstellerteilenummer` | Im ERP keine `HerstellerNr` hinterlegt. |
+| `API-Fehler` / `Rate-Limit` | Technischer Fehler; übrige Artikel werden trotzdem verarbeitet. |
+
+### Konfidenz
+
+| Stufe | Kriterien |
+| --- | --- |
+| `Hoch` | exakte Teilenummer, Hersteller stimmt, genau ein Treffer, strukturiertes Attribut. |
+| `Mittel` | exakte Teilenummer, ERP-Hersteller fehlt, genau ein plausibler Treffer. |
+| `Niedrig` | mehrere Treffer oder Herstellerabweichung – nur als Prüfhinweis. |
+
+### Aktion
+
+| Aktion | Bedeutung |
+| --- | --- |
+| `Ergänzen` | ERP-Wert leer, Online-Wert vorhanden. |
+| `Bestätigt` | ERP- und Online-Wert stimmen (nach Einheiten-Normalisierung) überein. |
+| `Konflikt prüfen` | ERP- und Online-Wert weichen ab – manuell prüfen. |
+
+### Datenschutz, lokale Verarbeitung und Cache
+
+- Verarbeitung erfolgt lokal; an die Mouser-API wird **nur** die bereinigte
+  Herstellerteilenummer als Suchbegriff gesendet.
+- Ein lokaler Cache unter `.cache/` (per `.gitignore` ausgeschlossen) vermeidet
+  wiederholte Anfragen. Er speichert nur neutrale Produktdaten mit Zeitstempel,
+  **keine** API-Schlüssel und **keine** Fehlerantworten. Gültigkeitsdauer und
+  Verzeichnis sind konfigurierbar (siehe `.env.example`); `--clear-cache` bzw.
+  `--no-cache` steuern ihn zur Laufzeit.
+- Fehler werden robust behandelt (Timeout, begrenzte Wiederholungen mit Backoff,
+  Rate-Limit-Erkennung); ein Fehler bei einem Artikel stoppt die übrigen nicht.
+
 ## Roadmap
 
 Grobe, iterative Ausbaustufen (Reihenfolge kann sich ändern):
@@ -184,8 +271,9 @@ Grobe, iterative Ausbaustufen (Reihenfolge kann sich ändern):
    nachvollziehbare Prüfergebnisse zur Datenqualität.
 4. **Excel-Export** – Ausgabe der Prüfergebnisse/Vorschläge in neue Dateien.
 5. **GUI** – Bedienoberfläche (PySide6) zur Anzeige und Auswahl von Vorschlägen.
-6. **Herstellerdaten & Datenquellen** – Abgleich über Herstellernummer;
-   Anbindung externer Quellen über eine gemeinsame Schnittstelle.
+6. **Herstellerdaten & Datenquellen** *(begonnen)* – Abgleich über die
+   Herstellerteilenummer; Mouser als erster Provider über eine gemeinsame,
+   providerneutrale Schnittstelle (weitere Quellen folgen).
 7. **KI-Unterstützung** *(optional)* – klar gekapselte, optionale Vorschläge.
 
 ## Grundprinzipien
