@@ -300,7 +300,11 @@ Hand bearbeitet werden.
 
 Der Online-Abgleich (Attributvorschläge anhand der Herstellerteilenummer) ist
 bewusst providerneutral aufgebaut, damit die Fachlogik nicht an eine konkrete
-Datenquelle (Mouser) gekoppelt ist und weitere Quellen ergänzt werden können.
+Datenquelle gekoppelt ist und weitere Quellen ergänzt werden können. Angebunden
+sind aktuell **Mouser** und **DigiKey** (letzterer wahlweise über die
+Product-Information-API **V3** oder **V4**). Die aktive Quelle wird über
+`config.settings` bzw. die CLI gewählt (`AVOR_PROVIDER`, `--provider`,
+`--digikey-version`) und ist **nicht** in der Fachlogik verdrahtet.
 
 ### Schichten
 
@@ -310,10 +314,20 @@ Datenquelle (Mouser) gekoppelt ist und weitere Quellen ergänzt werden können.
   `OK`/`API_ERROR`/`RATE_LIMITED`). Ein fehlender API-Schlüssel ist ein
   Konfigurationsfehler und wird als `MissingApiKeyError` ausgelöst – technische
   Laufzeitfehler dagegen nur als Status im Ergebnis abgebildet.
-- **`datasources.mouser`** – erster konkreter Provider (offizielle Mouser
-  Search API, **kein** Scraping). Kennt als einziges Modul die Mouser-Feldnamen
-  und überführt Antworten in `ProviderProduct`. Enthält Timeout, begrenzte
-  Wiederholungen mit exponentiellem Backoff und Rate-Limit-Erkennung.
+- **`datasources.mouser`** – konkreter Provider (offizielle Mouser Search API,
+  **kein** Scraping). Kennt als einziges Modul die Mouser-Feldnamen und überführt
+  Antworten in `ProviderProduct`. Enthält Timeout, begrenzte Wiederholungen mit
+  exponentiellem Backoff und Rate-Limit-Erkennung.
+- **`datasources.digikey`** – zweiter konkreter Provider (DigiKey Product
+  Information API, **kein** Scraping) mit OAuth2 (Client Credentials). Kapselt
+  **beide** API-Versionen: version­spezifische Endpunkte, Request-Felder und
+  Antwort-Parser (V3: `ManufacturerPartNumber`/`Parameters[].Parameter` …, V4:
+  `ManufacturerProductNumber`/`Parameters[].ParameterText` …) liegen
+  ausschliesslich hier und liefern in dasselbe neutrale `ProviderProduct`. Der
+  Providername (`digikey-v3`/`digikey-v4`) trennt zugleich die Cache-Einträge.
+  Access-Token werden nur im Speicher gehalten; Client-Secret/Token werden aus
+  Fehlermeldungen redigiert. Details und V3/V4-Bewertung:
+  [`digikey_provider.md`](digikey_provider.md).
 - **`datasources.normalization`** – rein **technische** Bereinigung der
   Herstellerteilenummer (Rand-/unsichtbare Zeichen; Gross-/Kleinschreibung nur
   für den Vergleich). Es werden **keine** inhaltlichen Bestandteile (Gehäuse-,
@@ -366,12 +380,20 @@ parametrische Datenquelle nötig. Sicherheitsrelevant: Der als URL-Query
 übergebene API-Schlüssel wird aus allen Fehlermeldungen redigiert
 (`MouserProvider._redact`), damit er nie in der Ergebnis-Excel landet.
 
+Die **DigiKey Product Information API** liefert demgegenüber strukturierte
+technische Parameter (`Parameters`) und eignet sich damit als Quelle für
+Attributvorschläge. V3 und V4 unterscheiden sich im Wesentlichen in Feldnamen,
+nicht im Parameter-Vokabular; die Attributabdeckung ist praktisch identisch. Für
+Neuanbindungen wird V4 empfohlen (Standard). Bewertung und manueller
+E2E-Ablauf: [`digikey_provider.md`](digikey_provider.md).
+
 ### Neuen Provider ergänzen
 
 1. Neue Klasse von `ComponentDataProvider` ableiten und `search_exact`
    implementieren; Antworten in `ProviderProduct` überführen.
 2. Provider-spezifische Feldnamen ausschliesslich im neuen Modul halten.
-3. In `attribute_analyzer.build_default_provider` (oder per Auswahl) einbinden.
+3. In `attribute_analyzer.build_default_provider` einbinden und (falls nötig) in
+   `config.settings` bzw. der CLI auswählbar machen.
 4. Fachlogik (`online_analyzer`, Mapping, Export) bleibt unverändert.
 
 ## Abhängigkeitsrichtung

@@ -172,7 +172,7 @@ Sachgruppe vorangestellt (Duplikate entfernt, Reihenfolge beibehalten).
 
 Details zu Schema und Ablauf: [`docs/architecture.md`](docs/architecture.md).
 
-## Online-Abgleich über die Herstellerteilenummer (Mouser)
+## Online-Abgleich über die Herstellerteilenummer (Mouser / DigiKey)
 
 Optional können fehlende oder möglicherweise falsche Attribute anhand der
 `HerstellerNr` **online** abgeglichen werden. Es werden ausschliesslich
@@ -180,18 +180,34 @@ Optional können fehlende oder möglicherweise falsche Attribute anhand der
 automatisch übernommen. Die manuell gepflegte `Benennung` wird **nicht** als
 Attributquelle verwendet.
 
-Aktuell ist die offizielle **Mouser Search API** angebunden (kein Web-Scraping).
-Die Architektur ist providerneutral; weitere Quellen (DigiKey, Nexar, …) lassen
-sich später ergänzen, ohne die Fachlogik zu ändern.
+Angebunden sind zwei providerneutrale Datenquellen (kein Web-Scraping):
 
-> **Bekannte Einschränkung (aus dem echten Ende-zu-Ende-Test, siehe
+- **Mouser Search API**
+- **DigiKey Product Information API** – wahlweise **V3** oder **V4** (konfigurierbar)
+
+Die Fachlogik hängt nur von einem gemeinsamen, neutralen Datenmodell ab; weitere
+Quellen (Nexar, Hersteller-APIs, …) lassen sich ergänzen, ohne die Analyse zu
+ändern.
+
+### Datenquelle wählen
+
+Standard ist Mouser. Die Auswahl erfolgt über die Umgebungsvariable
+`AVOR_PROVIDER` (`mouser`/`digikey`) oder pro Lauf über `--provider`:
+
+```bash
+python main.py analyse "ERP_Export.xlsx" --online --provider digikey
+python main.py analyse "ERP_Export.xlsx" --online --provider digikey --digikey-version v3
+```
+
+> **Hinweis (aus dem echten Mouser-Ende-zu-Ende-Test, siehe
 > [`docs/mouser_e2e_report.md`](docs/mouser_e2e_report.md)):** Die Mouser Search
 > API liefert strukturiert nur **Verpackungsattribute** (`Verpackung`,
-> `Standardpackungsmenge`); technische Kenngrössen stehen ausschliesslich im
+> `Standardpackungsmenge`); technische Kenngrössen stehen dort nur im
 > Freitextfeld `Description`, das laut Regelwerk **nicht** als Attributquelle
-> dienen darf. Für strukturierte technische Vorschläge ist daher künftig eine
-> parametrische Datenquelle nötig. Antworten sind zudem kontoabhängig
-> lokalisiert (z. B. deutsche Attributnamen).
+> dienen darf. Die **DigiKey Product Information API** liefert demgegenüber
+> strukturierte **technische** Parameter (`Parameters`) und ist damit die
+> geeignetere Quelle für Attributvorschläge (siehe
+> [`docs/digikey_provider.md`](docs/digikey_provider.md)).
 
 ### Mouser-API-Zugang einrichten
 
@@ -208,13 +224,34 @@ sich später ergänzen, ohne die Fachlogik zu ändern.
    cp .env.example .env    # anschliessend MOUSER_API_KEY eintragen
    ```
 
-Fehlt der Schlüssel, bricht der Online-Modus mit einer verständlichen Meldung ab
-(die reine Datenqualitätsanalyse funktioniert weiterhin ohne Schlüssel).
+### DigiKey-API-Zugang einrichten
+
+1. Bei DigiKey registrieren und unter <https://developer.digikey.com/> eine App
+   für die **Product Information API** anlegen (OAuth2, Client Credentials).
+2. `Client-ID` und `Client-Secret` bereitstellen – **niemals** ins Repository
+   committen:
+
+   ```bash
+   export DIGIKEY_CLIENT_ID="deine_client_id"
+   export DIGIKEY_CLIENT_SECRET="dein_client_secret"
+   export DIGIKEY_API_VERSION="v4"   # oder "v3"
+   # alternativ die Werte in eine lokale .env eintragen (siehe .env.example)
+   ```
+
+3. Die verwendete API-Version ist über `DIGIKEY_API_VERSION` (bzw.
+   `--digikey-version`) frei wählbar und **nicht** in der Fachlogik verdrahtet.
+   Für die Sandbox `DIGIKEY_BASE_URL=https://sandbox-api.digikey.com` setzen.
+
+Fehlen die Zugangsdaten des gewählten Providers, bricht der Online-Modus mit
+einer verständlichen Meldung ab (die reine Datenqualitätsanalyse funktioniert
+weiterhin ohne Zugangsdaten).
 
 ### Online-Abgleich starten
 
 ```bash
 python main.py analyse "ERP_Export.xlsx" --online
+# Provider/Version wählen:
+python main.py analyse "ERP_Export.xlsx" --online --provider digikey --digikey-version v4
 # Cache umgehen bzw. vorher leeren:
 python main.py analyse "ERP_Export.xlsx" --online --no-cache
 python main.py analyse "ERP_Export.xlsx" --online --clear-cache
@@ -248,6 +285,9 @@ Die Ausgabe erweitert die Analysedatei um zwei Tabellenblätter (die Blätter
 | `Mittel` | exakte Teilenummer, ERP-Hersteller fehlt, genau ein plausibler Treffer. |
 | `Niedrig` | mehrere Treffer oder Herstellerabweichung – nur als Prüfhinweis. |
 
+Der `Provider` (z. B. `mouser`, `digikey-v4`) wird je Vorschlag und je Artikel
+in der Ausgabe geführt, sodass die verwendete Quelle nachvollziehbar bleibt.
+
 ### Aktion
 
 | Aktion | Bedeutung |
@@ -258,8 +298,10 @@ Die Ausgabe erweitert die Analysedatei um zwei Tabellenblätter (die Blätter
 
 ### Datenschutz, lokale Verarbeitung und Cache
 
-- Verarbeitung erfolgt lokal; an die Mouser-API wird **nur** die bereinigte
-  Herstellerteilenummer als Suchbegriff gesendet.
+- Verarbeitung erfolgt lokal; an die jeweilige Provider-API wird **nur** die
+  bereinigte Herstellerteilenummer als Suchbegriff gesendet. Zugangsdaten
+  (API-Schlüssel bzw. OAuth-Client-Secret/Token) werden **niemals** protokolliert
+  oder in Ausgaben/Fehlermeldungen geschrieben (Redaktion).
 - Ein lokaler Cache unter `.cache/` (per `.gitignore` ausgeschlossen) vermeidet
   wiederholte Anfragen. Er speichert nur neutrale Produktdaten mit Zeitstempel,
   **keine** API-Schlüssel und **keine** Fehlerantworten. Gültigkeitsdauer und
