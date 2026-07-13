@@ -97,6 +97,22 @@ class MouserProvider(ComponentDataProvider):
         """Providername (``"mouser"``)."""
         return PROVIDER_NAME
 
+    def _redact(self, text: str) -> str:
+        """Entfernt den API-Schlüssel aus einer Fehlermeldung.
+
+        Der Schlüssel wird als Query-Parameter an die URL gehängt; ``requests``
+        nimmt die URL in Ausnahmemeldungen auf. Da Fehlermeldungen in die
+        Ergebnis-Excel (Spalte ``Meldung``) geschrieben werden, darf der
+        Schlüssel dort **niemals** erscheinen.
+
+        Args:
+            text: Ursprüngliche Fehlermeldung.
+
+        Returns:
+            Die Meldung mit ersetztem Schlüssel.
+        """
+        return text.replace(self._api_key, "***")
+
     def _parse_part(self, part: dict[str, object]) -> ProviderProduct:
         """Überführt einen Mouser-Part in das neutrale Produktmodell."""
         parameters: dict[str, str] = {}
@@ -200,9 +216,9 @@ class MouserProvider(ComponentDataProvider):
                     url, json=payload, timeout=self._timeout
                 )
             except requests.Timeout as error:
-                last_error = f"Zeitüberschreitung bei der Anfrage: {error}"
+                last_error = self._redact(f"Zeitüberschreitung bei der Anfrage: {error}")
             except requests.RequestException as error:
-                last_error = f"Verbindungsfehler bei der Anfrage: {error}"
+                last_error = self._redact(f"Verbindungsfehler bei der Anfrage: {error}")
             else:
                 if response.status_code == 429:
                     rate_limited = True

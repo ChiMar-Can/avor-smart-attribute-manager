@@ -151,3 +151,34 @@ def test_errors_field_generic_api_error() -> None:
     result = _provider(session).search_exact("LM317T")
 
     assert result.status is ProviderResponseStatus.API_ERROR
+
+
+def test_api_key_never_leaks_into_error_message() -> None:
+    """Regression: der Schlüssel steckt in der URL und darf nie in Meldungen.
+
+    ``requests`` nimmt die vollständige URL (inkl. ``?apiKey=...``) in ihre
+    Ausnahmemeldungen auf; diese Meldungen werden in die Ergebnis-Excel
+    geschrieben. Der Schlüssel muss daher redigiert werden.
+    """
+    secret = "SECRETKEY123"
+
+    def _raise() -> _FakeResponse:
+        raise requests.ConnectionError(
+            "Max retries exceeded with url: "
+            f"/api/v1/search/keyword?apiKey={secret}"
+        )
+
+    session = _FakeSession([_raise])
+    provider = MouserProvider(
+        secret,
+        session=session,  # type: ignore[arg-type]
+        max_retries=0,
+        backoff_seconds=0.0,
+        sleep=lambda _seconds: None,
+    )
+    result = provider.search_exact("LM317T")
+
+    assert result.status is ProviderResponseStatus.API_ERROR
+    assert result.error_message is not None
+    assert secret not in result.error_message
+    assert "***" in result.error_message

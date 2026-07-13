@@ -353,6 +353,19 @@ normalen Analyselauf um die Blätter `Online_Vorschlaege` und `Online_Abgleich`
 Der API-Schlüssel kommt ausschliesslich aus der Umgebung bzw. einer lokalen,
 nicht versionierten `.env` (`config.settings`).
 
+### Datenverfügbarkeit der Mouser Search API
+
+Ein echter Ende-zu-Ende-Test (siehe [`mouser_e2e_report.md`](mouser_e2e_report.md))
+hat gezeigt, dass die Mouser Search API strukturiert nur Verpackungsattribute
+(`Verpackung`, `Standardpackungsmenge`) liefert und länder-/kontoabhängig
+lokalisiert ist. Technische Kenngrössen stehen nur im Freitextfeld
+`Description`, das laut Regelwerk nicht als Attributquelle dienen darf. Das
+`attribute_mapping` ignoriert die Verpackungsattribute korrekt (keine
+Falschvorschläge); für strukturierte technische Vorschläge ist künftig eine
+parametrische Datenquelle nötig. Sicherheitsrelevant: Der als URL-Query
+übergebene API-Schlüssel wird aus allen Fehlermeldungen redigiert
+(`MouserProvider._redact`), damit er nie in der Ergebnis-Excel landet.
+
 ### Neuen Provider ergänzen
 
 1. Neue Klasse von `ComponentDataProvider` ableiten und `search_exact`

@@ -184,6 +184,15 @@ Aktuell ist die offizielle **Mouser Search API** angebunden (kein Web-Scraping).
 Die Architektur ist providerneutral; weitere Quellen (DigiKey, Nexar, …) lassen
 sich später ergänzen, ohne die Fachlogik zu ändern.
 
+> **Bekannte Einschränkung (aus dem echten Ende-zu-Ende-Test, siehe
+> [`docs/mouser_e2e_report.md`](docs/mouser_e2e_report.md)):** Die Mouser Search
+> API liefert strukturiert nur **Verpackungsattribute** (`Verpackung`,
+> `Standardpackungsmenge`); technische Kenngrössen stehen ausschliesslich im
+> Freitextfeld `Description`, das laut Regelwerk **nicht** als Attributquelle
+> dienen darf. Für strukturierte technische Vorschläge ist daher künftig eine
+> parametrische Datenquelle nötig. Antworten sind zudem kontoabhängig
+> lokalisiert (z. B. deutsche Attributnamen).
+
 ### Mouser-API-Zugang einrichten
 
 1. Bei Mouser registrieren und unter *Mouser API* einen Zugang für die
