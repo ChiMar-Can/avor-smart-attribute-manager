@@ -53,6 +53,7 @@ COMMON_PARAMETER_MAP: dict[str, str] = {
     "power - max": "Leistung",
     "power": "Leistung",
     "mounting style": "Technologie",
+    "mounting type": "Technologie",
     "package / case": "Bauform",
     "supplier device package": "Bauform",
     "case code (imperial)": "SmdBauform",

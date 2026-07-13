@@ -22,8 +22,12 @@ from avor_smart_attribute_manager.analysis.attribute_analyzer import (
     analyze_and_export,
     analyze_and_export_with_online,
 )
-from avor_smart_attribute_manager.config.settings import load_settings
+from avor_smart_attribute_manager.config.settings import (
+    SUPPORTED_PROVIDERS,
+    load_settings,
+)
 from avor_smart_attribute_manager.datasources.cache import SearchCache
+from avor_smart_attribute_manager.datasources.digikey import DigiKeyApiVersion
 from avor_smart_attribute_manager.datasources.provider import MissingApiKeyError
 from avor_smart_attribute_manager.excel.exporter import build_summary_frame
 from avor_smart_attribute_manager.models.online import MatchStatus
@@ -58,7 +62,25 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Zusätzlich einen Online-Abgleich der HerstellerNr durchführen "
-            "(benötigt die Umgebungsvariable MOUSER_API_KEY)."
+            "(benötigt Zugangsdaten des gewählten Providers)."
+        ),
+    )
+    analyse.add_argument(
+        "--provider",
+        choices=SUPPORTED_PROVIDERS,
+        default=None,
+        help=(
+            "Datenquelle für den Online-Abgleich (Standard: Konfiguration bzw. "
+            "mouser)."
+        ),
+    )
+    analyse.add_argument(
+        "--digikey-version",
+        choices=[version.value for version in DigiKeyApiVersion],
+        default=None,
+        help=(
+            "DigiKey-API-Version für den Online-Abgleich (Standard: Konfiguration "
+            "bzw. v4)."
         ),
     )
     analyse.add_argument(
@@ -137,6 +159,8 @@ def main(argv: list[str] | None = None) -> int:
     online = False
     no_cache = False
     clear_cache = False
+    provider_override: str | None = None
+    digikey_version_override: str | None = None
     if args.command == "analyse":
         input_path = args.file
         rules_path = args.rules
@@ -144,6 +168,8 @@ def main(argv: list[str] | None = None) -> int:
         online = args.online
         no_cache = args.no_cache
         clear_cache = args.clear_cache
+        provider_override = args.provider
+        digikey_version_override = args.digikey_version
     else:
         selected = _select_input_file()
         if selected is None:
@@ -158,6 +184,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if online:
         settings = load_settings()
+        if provider_override is not None:
+            settings = dataclasses.replace(settings, provider=provider_override)
+        if digikey_version_override is not None:
+            settings = dataclasses.replace(
+                settings,
+                digikey_api_version=DigiKeyApiVersion.from_str(
+                    digikey_version_override
+                ),
+            )
         if no_cache:
             settings = dataclasses.replace(settings, use_cache=False)
         if clear_cache:
