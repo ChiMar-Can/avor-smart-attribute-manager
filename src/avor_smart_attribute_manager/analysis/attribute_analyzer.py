@@ -12,7 +12,15 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from avor_smart_attribute_manager.excel.exporter import export_analysis
+from avor_smart_attribute_manager.analysis.online_analyzer import run_online_analysis
+from avor_smart_attribute_manager.config.settings import Settings, load_settings
+from avor_smart_attribute_manager.datasources.cache import SearchCache
+from avor_smart_attribute_manager.datasources.mouser import MouserProvider
+from avor_smart_attribute_manager.datasources.provider import ComponentDataProvider
+from avor_smart_attribute_manager.excel.exporter import (
+    export_analysis,
+    export_analysis_with_online,
+)
 from avor_smart_attribute_manager.excel.importer import (
     load_articles,
     normalize_dataframe,
@@ -20,6 +28,7 @@ from avor_smart_attribute_manager.excel.importer import (
     to_articles,
 )
 from avor_smart_attribute_manager.models.article import Article
+from avor_smart_attribute_manager.models.online import OnlineAnalysis
 from avor_smart_attribute_manager.models.validation import ArticleValidationResult
 from avor_smart_attribute_manager.rules.attribute_rules import (
     AttributeRules,
@@ -100,3 +109,89 @@ def analyze_and_export(
     results = analyze_articles(articles, rules)
     target = export_analysis(original, results, excel_path, output_path)
     return AnalysisExport(output_path=target, results=results)
+
+
+def build_default_provider(settings: Settings) -> ComponentDataProvider:
+    """Erzeugt den Standard-Provider (Mouser) aus den Einstellungen.
+
+    Args:
+        settings: Anwendungseinstellungen mit dem API-Schlüssel.
+
+    Returns:
+        Ein konfigurierter :class:`ComponentDataProvider`.
+
+    Raises:
+        MissingApiKeyError: Wenn kein API-Schlüssel gesetzt ist.
+    """
+    return MouserProvider(
+        settings.mouser_api_key or "",
+        timeout=settings.request_timeout,
+        max_retries=settings.max_retries,
+        backoff_seconds=settings.backoff_seconds,
+    )
+
+
+@dataclass(frozen=True)
+class OnlineAnalysisExport:
+    """Ergebnis eines Analyse-, Online-Abgleich- und Exportlaufs.
+
+    Attributes:
+        output_path: Pfad der geschriebenen Analysedatei.
+        results: Prüfergebnisse je Artikel (in Zeilenreihenfolge).
+        online: Ergebnis des Online-Abgleichs (Status je Artikel + Vorschläge).
+    """
+
+    output_path: Path
+    results: list[ArticleValidationResult]
+    online: OnlineAnalysis
+
+
+def analyze_and_export_with_online(
+    excel_path: Path,
+    output_path: Path | None = None,
+    rules_path: Path | None = None,
+    *,
+    provider: ComponentDataProvider | None = None,
+    settings: Settings | None = None,
+) -> OnlineAnalysisExport:
+    """Analysiert einen ERP-Export, gleicht online ab und schreibt eine Datei.
+
+    Die Eingabedatei wird ausschliesslich gelesen. Zusätzlich zu Analyse und
+    Zusammenfassung enthält die Ausgabe die Blätter ``Online_Vorschlaege`` und
+    ``Online_Abgleich``. Bestehende ERP-Werte werden niemals verändert.
+
+    Args:
+        excel_path: Pfad zur einzulesenden ERP-Excel-Datei (nur lesend).
+        output_path: Optionaler Zielpfad; ohne Angabe wird
+            ``<Dateiname>_analyse.xlsx`` verwendet.
+        rules_path: Optionaler Pfad zu einer Regelwerksdatei.
+        provider: Optionaler Provider (Standard: Mouser aus den Einstellungen).
+        settings: Optionale Einstellungen (Standard: aus Umgebung/``.env``).
+
+    Returns:
+        Ein :class:`OnlineAnalysisExport` mit Ausgabepfad, Prüfergebnissen und
+        Online-Abgleich.
+
+    Raises:
+        MissingApiKeyError: Wenn kein Provider übergeben wird und kein
+            API-Schlüssel gesetzt ist.
+    """
+    effective_settings = settings if settings is not None else load_settings()
+    original = read_workbook(excel_path)
+    articles = to_articles(normalize_dataframe(original))
+    rules = load_attribute_rules(rules_path)
+    results = analyze_articles(articles, rules)
+
+    active_provider = (
+        provider if provider is not None else build_default_provider(effective_settings)
+    )
+    cache = (
+        SearchCache(effective_settings.cache_dir, effective_settings.cache_ttl_seconds)
+        if effective_settings.use_cache
+        else None
+    )
+    online = run_online_analysis(articles, rules, active_provider, cache)
+    target = export_analysis_with_online(
+        original, results, online.suggestions, online.statuses, excel_path, output_path
+    )
+    return OnlineAnalysisExport(output_path=target, results=results, online=online)
