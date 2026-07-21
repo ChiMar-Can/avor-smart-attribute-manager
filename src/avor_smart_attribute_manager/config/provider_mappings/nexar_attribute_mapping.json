@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "description": "Zentrale, datengetriebene Zuordnung strukturierter Nexar-Spezifikationen (SupSpec) auf interne ERP-Attribute. Es werden ausschliesslich strukturierte Spezifikationen verwendet; Produktbeschreibung/Benennung/Bemerkung dienen nie als Quelle. 'nexar_shortname' ist der (bevorzugte) stabile Nexar-Attribut-Kurzname; 'alternative_names' enthaelt zusaetzlich menschenlesbare Namen als Fallback. Namen werden fuer den Vergleich normalisiert (klein, Leerzeichen zusammengefasst). 'allowed_sachgruppen' begrenzt die Regel (leer = alle). 'priority' entscheidet bei Mehrdeutigkeit (kleiner = hoeher).",
+  "mappings": [
+    {
+      "erp_attribute": "Wert",
+      "nexar_shortname": "resistance",
+      "alternative_names": ["resistance", "resistance value"],
+      "allowed_sachgruppen": ["Widerstand"],
+      "expected_unit": "\u03a9",
+      "priority": 10
+    },
+    {
+      "erp_attribute": "Wert",
+      "nexar_shortname": "capacitance",
+      "alternative_names": ["capacitance"],
+      "allowed_sachgruppen": ["Kondensator"],
+      "expected_unit": "F",
+      "priority": 10
+    },
+    {
+      "erp_attribute": "Wert",
+      "nexar_shortname": "inductance",
+      "alternative_names": ["inductance"],
+      "allowed_sachgruppen": ["Ferrit Induktion Filter"],
+      "expected_unit": "H",
+      "priority": 10
+    },
+    {
+      "erp_attribute": "Wert",
+      "nexar_shortname": "frequency",
+      "alternative_names": ["frequency"],
+      "allowed_sachgruppen": ["Quarz Oszillator Resonator"],
+      "expected_unit": "Hz",
+      "priority": 10
+    },
+    {
+      "erp_attribute": "Toleranz",
+      "nexar_shortname": "tolerance",
+      "alternative_names": ["tolerance"],
+      "allowed_sachgruppen": [],
+      "expected_unit": "%",
+      "priority": 20
+    },
+    {
+      "erp_attribute": "Dielektrikum",
+      "nexar_shortname": "temperaturecoefficient",
+      "alternative_names": [
+        "dielectric",
+        "dielectric characteristic",
+        "temperature coefficient"
+      ],
+      "allowed_sachgruppen": ["Kondensator"],
+      "expected_unit": null,
+      "priority": 20
+    },
+    {
+      "erp_attribute": "Spannung",
+      "nexar_shortname": "voltagerating_dc_",
+      "alternative_names": [
+        "voltage rating (dc)",
+        "voltage rating dc",
+        "voltage rating",
+        "voltage - rated",
+        "voltage"
+      ],
+      "allowed_sachgruppen": [],
+      "expected_unit": "V",
+      "priority": 30
+    },
+    {
+      "erp_attribute": "Strom",
+      "nexar_shortname": "currentrating",
+      "alternative_names": [
+        "current rating",
+        "current - rated",
+        "current"
+      ],
+      "allowed_sachgruppen": [],
+      "expected_unit": "A",
+      "priority": 30
+    },
+    {
+      "erp_attribute": "Leistung",
+      "nexar_shortname": "powerrating",
+      "alternative_names": [
+        "power rating",
+        "power (watts)",
+        "power - max",
+        "power"
+      ],
+      "allowed_sachgruppen": [],
+      "expected_unit": "W",
+      "priority": 30
+    },
+    {
+      "erp_attribute": "Technologie",
+      "nexar_shortname": "mountingstyle",
+      "alternative_names": [
+        "mounting style",
+        "mounting type",
+        "mounting"
+      ],
+      "allowed_sachgruppen": [],
+      "expected_unit": null,
+      "priority": 40
+    },
+    {
+      "erp_attribute": "Bauform",
+      "nexar_shortname": "casepackage",
+      "alternative_names": [
+        "package / case",
+        "case/package",
+        "supplier device package"
+      ],
+      "allowed_sachgruppen": [],
+      "expected_unit": null,
+      "priority": 40
+    },
+    {
+      "erp_attribute": "SmdBauform",
+      "nexar_shortname": "case_package_imperial_",
+      "alternative_names": [
+        "case code (imperial)",
+        "case code - in",
+        "case / package (imperial)"
+      ],
+      "allowed_sachgruppen": [],
+      "expected_unit": null,
+      "priority": 40
+    }
+  ]
+}
