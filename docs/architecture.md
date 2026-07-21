@@ -65,7 +65,12 @@ avor-smart-attribute-manager/
 │       │   └── manufacturer_data.py
 │       ├── datasources/                # Abstraktion externer Datenquellen
 │       │   ├── __init__.py
-│       │   └── base.py
+│       │   ├── provider.py             # neutraler Provider-Vertrag + Modelle
+│       │   ├── mouser.py               # Mouser Search API
+│       │   ├── digikey.py              # DigiKey Product Information V3/V4
+│       │   ├── nexar.py                # Nexar Supply GraphQL (supSearchMpn)
+│       │   ├── normalization.py        # technische MPN-Bereinigung
+│       │   └── cache.py                # lokaler providergetrennter Cache
 │       └── ai/                         # KI-Unterstützung (optional, gekapselt)
 │           ├── __init__.py
 │           └── suggestions.py
@@ -301,17 +306,22 @@ Hand bearbeitet werden.
 Der Online-Abgleich (Attributvorschläge anhand der Herstellerteilenummer) ist
 bewusst providerneutral aufgebaut, damit die Fachlogik nicht an eine konkrete
 Datenquelle gekoppelt ist und weitere Quellen ergänzt werden können. Angebunden
-sind aktuell **Mouser** und **DigiKey** (letzterer wahlweise über die
-Product-Information-API **V3** oder **V4**). Die aktive Quelle wird über
-`config.settings` bzw. die CLI gewählt (`AVOR_PROVIDER`, `--provider`,
-`--digikey-version`) und ist **nicht** in der Fachlogik verdrahtet.
+sind aktuell **Mouser**, **DigiKey** (wahlweise über die Product-Information-API
+**V3** oder **V4**) und **Nexar** (Supply-GraphQL). Die aktive(n) Quelle(n)
+werden über `config.settings` bzw. die CLI gewählt (`AVOR_PROVIDER`,
+`--provider`, `--digikey-version`) und sind **nicht** in der Fachlogik
+verdrahtet. `--provider` ist mehrfach angebbar bzw. `all`; die Provider laufen
+dann **unabhängig und parallel**, und es entsteht zusätzlich ein Quellenvergleich
+(`Provider_Vergleich`).
 
 ### Schichten
 
 - **`datasources.provider`** – definiert den Vertrag `ComponentDataProvider`
   (`search_exact(mpn, manufacturer)`) sowie die neutralen Ergebnismodelle
-  `ProviderProduct` und `ProviderSearchResult` (mit `ProviderResponseStatus`
-  `OK`/`API_ERROR`/`RATE_LIMITED`). Ein fehlender API-Schlüssel ist ein
+  `ProviderProduct` (inkl. strukturierter `ProviderSpec` mit Name, Anzeigewert,
+  Rohwert und Einheit) und `ProviderSearchResult` (mit `ProviderResponseStatus`
+  `OK`/`API_ERROR`/`RATE_LIMITED`/`AUTH_ERROR`/`GRAPHQL_ERROR`/
+  `PART_LIMIT_REACHED`). Ein fehlender API-Schlüssel ist ein
   Konfigurationsfehler und wird als `MissingApiKeyError` ausgelöst – technische
   Laufzeitfehler dagegen nur als Status im Ergebnis abgebildet.
 - **`datasources.mouser`** – konkreter Provider (offizielle Mouser Search API,
@@ -328,6 +338,17 @@ Product-Information-API **V3** oder **V4**). Die aktive Quelle wird über
   Access-Token werden nur im Speicher gehalten; Client-Secret/Token werden aus
   Fehlermeldungen redigiert. Details und V3/V4-Bewertung:
   [`digikey_provider.md`](digikey_provider.md).
+- **`datasources.nexar`** – dritter konkreter Provider (Nexar Supply-GraphQL,
+  `supSearchMpn`, **kein** Scraping). Kapselt Query, Variablen und
+  `data`/`errors`-Auswertung; überführt `SupPart.specs` in strukturierte
+  `ProviderSpec`. Authentifizierung wahlweise über statisches
+  `NEXAR_ACCESS_TOKEN` (Vorrang, nicht erneuerbar) oder OAuth2 Client Credentials
+  (`NEXAR_CLIENT_ID`/`NEXAR_CLIENT_SECRET`, In-Memory-Token mit Ablaufmarge und
+  Refresh). GraphQL-Fehler werden auch bei HTTP 200 erkannt und in
+  `AUTH_ERROR`/`RATE_LIMITED`/`PART_LIMIT_REACHED`/`GRAPHQL_ERROR` klassifiziert;
+  Secrets/Token werden redigiert. Der Providername (`nexar-search-mpn-v1`) trennt
+  zugleich die Cache-Einträge nach Query-/Schema-Version. Details:
+  [`nexar_provider.md`](nexar_provider.md).
 - **`datasources.normalization`** – rein **technische** Bereinigung der
   Herstellerteilenummer (Rand-/unsichtbare Zeichen; Gross-/Kleinschreibung nur
   für den Vergleich). Es werden **keine** inhaltlichen Bestandteile (Gehäuse-,
@@ -339,20 +360,34 @@ Product-Information-API **V3** oder **V4**). Die aktive Quelle wird über
 - **`analysis.attribute_mapping`** – bildet strukturierte Quellparameter
   **sachgruppenabhängig** auf erlaubte ERP-Attribute ab. Nur regelkonforme
   Attribute werden vorgeschlagen; nicht eindeutig zuordenbare Parameter werden
-  verworfen (nichts wird geraten).
+  verworfen (nichts wird geraten). Für Nexar ist das Mapping datengetrieben in
+  `config/provider_mappings/nexar_attribute_mapping.json` konfiguriert (Nexar-
+  Shortname/Alternativnamen, ERP-Zielattribut, erlaubte Sachgruppen, erwartete
+  Einheit, Priorität); bei fehlender/mehrdeutiger Einheit entsteht kein Vorschlag.
+  Der passende Mapper wird je Provider über `mapper_for_provider` ausgewählt.
 - **`analysis.value_comparison`** – konservative Einheiten-Normalisierung zum
   Vergleich von ERP- und Online-Werten.
 - **`analysis.online_analyzer`** – Orchestrierung je Artikel: liest
   `HerstellerNr`/`Hersteller`, führt den exakten Abgleich durch, klassifiziert
   den `MatchStatus`, leitet die Konfidenz ab und erzeugt Vorschläge. Fehler
   einzelner Artikel werden isoliert und pro Artikel dokumentiert.
+  `run_multi_provider_analysis` führt mehrere Provider **unabhängig** aus
+  (Fehler eines Providers stoppen die anderen nicht) und berechnet je Artikel
+  einen `ProviderComparison` (`SOURCES_AGREE`,
+  `MULTIPLE_STRUCTURED_SOURCES_AGREE`, `SOURCES_CONFLICT`,
+  `ONLY_MOUSER_DATA`/`ONLY_DIGIKEY_DATA`/`ONLY_NEXAR_DATA`,
+  `NO_TECHNICAL_DATA`); nur strukturierte technische Werte zählen zur
+  Übereinstimmung.
 
 ### Match-Klassifizierung und Vorschläge
 
 Ein Treffer gilt nur als sicher, wenn die technisch normalisierte Teilenummer
 exakt übereinstimmt und – sofern im ERP vorhanden – der Hersteller passt. Daraus
 ergeben sich `EXACT_MATCH`, `MULTIPLE_EXACT_MATCHES`, `MANUFACTURER_MISMATCH`,
-`NO_EXACT_MATCH`, `NO_MPN`, `API_ERROR`, `RATE_LIMITED`. Bei mehreren/unsicheren
+`NO_EXACT_MATCH`, `NO_MPN`, `API_ERROR`, `RATE_LIMITED` sowie – vor allem für
+Nexar – `AUTH_ERROR`, `GRAPHQL_ERROR` und `PART_LIMIT_REACHED`. Ein abgelaufenes
+Token wird intern refreshed und nach aussen als `AUTH_ERROR` geführt (kein
+separater `TOKEN_EXPIRED`-Status). Bei mehreren/unsicheren
 Treffern werden Werte nur bei **Konsens** aller Treffer vorgeschlagen (Konfidenz
 `NIEDRIG`). Vorschläge (`ERGAENZEN`/`BESTAETIGT`/`KONFLIKT_PRUEFEN`) verändern
 bestehende ERP-Werte nie; das neutrale `ProductInfo`-Modell hält Roh- und
@@ -386,6 +421,11 @@ Attributvorschläge. V3 und V4 unterscheiden sich im Wesentlichen in Feldnamen,
 nicht im Parameter-Vokabular; die Attributabdeckung ist praktisch identisch. Für
 Neuanbindungen wird V4 empfohlen (Standard). Bewertung und manueller
 E2E-Ablauf: [`digikey_provider.md`](digikey_provider.md).
+
+**Nexar** (Supply-GraphQL) liefert über `SupPart.specs` strukturierte technische
+Spezifikationen inkl. Rohwert und Einheit und ist damit eine parametrische
+Quelle für Attributvorschläge. Setup, verifizierte Query, Mapping, Cache-/
+Schema-Versionierung und Einschränkungen: [`nexar_provider.md`](nexar_provider.md).
 
 ### Neuen Provider ergänzen
 
