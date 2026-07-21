@@ -21,8 +21,10 @@ import pandas as pd
 from avor_smart_attribute_manager.models.online import (
     ArticleOnlineStatus,
     AttributeSuggestion,
+    ComparisonStatus,
     MatchConfidence,
     MatchStatus,
+    ProviderComparison,
     SuggestionAction,
 )
 from avor_smart_attribute_manager.models.validation import (
@@ -74,6 +76,9 @@ ONLINE_SUGGESTIONS_SHEET_NAME = "Online_Vorschlaege"
 #: Name des (optionalen) Tabellenblatts mit dem Suchstatus je Artikel.
 ONLINE_STATUS_SHEET_NAME = "Online_Abgleich"
 
+#: Name des Tabellenblatts mit dem Quellenvergleich (bei mehreren Providern).
+PROVIDER_COMPARISON_SHEET_NAME = "Provider_Vergleich"
+
 #: Lesbare Bezeichnung je Match-Status.
 MATCH_STATUS_LABELS: dict[MatchStatus, str] = {
     MatchStatus.EXACT_MATCH: "Exakter Treffer",
@@ -83,6 +88,22 @@ MATCH_STATUS_LABELS: dict[MatchStatus, str] = {
     MatchStatus.NO_MPN: "Keine Herstellerteilenummer",
     MatchStatus.API_ERROR: "API-Fehler",
     MatchStatus.RATE_LIMITED: "Rate-Limit",
+    MatchStatus.AUTH_ERROR: "Authentifizierungsfehler",
+    MatchStatus.GRAPHQL_ERROR: "GraphQL-Fehler",
+    MatchStatus.PART_LIMIT_REACHED: "Teilelimit erreicht",
+}
+
+#: Lesbare Bezeichnung je Quellenvergleichs-Status.
+COMPARISON_STATUS_LABELS: dict[ComparisonStatus, str] = {
+    ComparisonStatus.NO_TECHNICAL_DATA: "Keine technischen Daten",
+    ComparisonStatus.ONLY_MOUSER_DATA: "Nur Mouser-Daten",
+    ComparisonStatus.ONLY_DIGIKEY_DATA: "Nur DigiKey-Daten",
+    ComparisonStatus.ONLY_NEXAR_DATA: "Nur Nexar-Daten",
+    ComparisonStatus.SOURCES_AGREE: "Quellen stimmen überein",
+    ComparisonStatus.MULTIPLE_STRUCTURED_SOURCES_AGREE: (
+        "Mehrere strukturierte Quellen stimmen überein"
+    ),
+    ComparisonStatus.SOURCES_CONFLICT: "Quellen widersprechen sich",
 }
 
 #: Lesbare Bezeichnung je Konfidenzstufe.
@@ -112,8 +133,12 @@ ONLINE_SUGGESTIONS_COLUMNS: tuple[str, ...] = (
     "ERP_Wert",
     "Vorschlag",
     "Aktion",
-    "Quelle_Produkt",
-    "Quelle_Datenblatt",
+    "Konfidenz",
+    "Rohwert",
+    "Einheit",
+    "Quelle_Parameter",
+    "Produkt_URL",
+    "Datenblatt_URL",
     "Begruendung",
 )
 
@@ -125,8 +150,27 @@ ONLINE_STATUS_COLUMNS: tuple[str, ...] = (
     "HerstellerNr",
     "Provider",
     "Match_Status",
+    "Match_Konfidenz",
+    "Gefundene_MPN",
+    "Gefundener_Hersteller",
+    "Produktkategorie",
     "Anzahl_Treffer",
+    "Anzahl_strukturierter_Spezifikationen",
+    "Produkt_URL",
+    "Datenblatt_URL",
     "Meldung",
+)
+
+#: Spaltenreihenfolge des Blattes ``Provider_Vergleich``.
+PROVIDER_COMPARISON_COLUMNS: tuple[str, ...] = (
+    "ARTIKEL",
+    "SachGruppe",
+    "Hersteller",
+    "HerstellerNr",
+    "Vergleichsstatus",
+    "Quellen_mit_Daten",
+    "Uebereinstimmende_Attribute",
+    "Abweichende_Attribute",
 )
 
 
@@ -288,8 +332,12 @@ def build_online_suggestions_frame(
             "ERP_Wert": suggestion.erp_value,
             "Vorschlag": suggestion.suggested_value,
             "Aktion": ACTION_LABELS[suggestion.action],
-            "Quelle_Produkt": suggestion.product_url,
-            "Quelle_Datenblatt": suggestion.datasheet_url,
+            "Konfidenz": CONFIDENCE_LABELS[suggestion.confidence],
+            "Rohwert": suggestion.raw_value,
+            "Einheit": suggestion.unit,
+            "Quelle_Parameter": suggestion.source_parameter,
+            "Produkt_URL": suggestion.product_url,
+            "Datenblatt_URL": suggestion.datasheet_url,
             "Begruendung": suggestion.reason,
         }
         for suggestion in suggestions
@@ -308,20 +356,72 @@ def build_online_status_frame(
     Returns:
         Ein ``DataFrame`` mit der Spaltenreihenfolge :data:`ONLINE_STATUS_COLUMNS`.
     """
+    rows = []
+    for status in statuses:
+        product = status.product
+        confidence = (
+            product.match_confidence
+            if product is not None and product.match_confidence is not None
+            else None
+        )
+        rows.append(
+            {
+                "ARTIKEL": status.article_number,
+                "SachGruppe": status.sachgruppe,
+                "Hersteller": status.manufacturer,
+                "HerstellerNr": status.manufacturer_part_number,
+                "Provider": status.provider,
+                "Match_Status": MATCH_STATUS_LABELS[status.match_status],
+                "Match_Konfidenz": (
+                    CONFIDENCE_LABELS[confidence] if confidence is not None else None
+                ),
+                "Gefundene_MPN": product.found_mpn if product is not None else None,
+                "Gefundener_Hersteller": (
+                    product.found_manufacturer if product is not None else None
+                ),
+                "Produktkategorie": (
+                    product.category if product is not None else None
+                ),
+                "Anzahl_Treffer": status.match_count,
+                "Anzahl_strukturierter_Spezifikationen": (
+                    len(product.raw_attributes) if product is not None else 0
+                ),
+                "Produkt_URL": product.product_url if product is not None else None,
+                "Datenblatt_URL": (
+                    product.datasheet_url if product is not None else None
+                ),
+                "Meldung": status.message,
+            }
+        )
+    return pd.DataFrame(rows, columns=list(ONLINE_STATUS_COLUMNS))
+
+
+def build_provider_comparison_frame(
+    comparisons: Sequence[ProviderComparison],
+) -> pd.DataFrame:
+    """Erzeugt den ``DataFrame`` für das Blatt ``Provider_Vergleich``.
+
+    Args:
+        comparisons: Ein Quellenvergleich je Artikel.
+
+    Returns:
+        Ein ``DataFrame`` mit der Spaltenreihenfolge
+        :data:`PROVIDER_COMPARISON_COLUMNS`.
+    """
     rows = [
         {
-            "ARTIKEL": status.article_number,
-            "SachGruppe": status.sachgruppe,
-            "Hersteller": status.manufacturer,
-            "HerstellerNr": status.manufacturer_part_number,
-            "Provider": status.provider,
-            "Match_Status": MATCH_STATUS_LABELS[status.match_status],
-            "Anzahl_Treffer": status.match_count,
-            "Meldung": status.message,
+            "ARTIKEL": comparison.article_number,
+            "SachGruppe": comparison.sachgruppe,
+            "Hersteller": comparison.manufacturer,
+            "HerstellerNr": comparison.manufacturer_part_number,
+            "Vergleichsstatus": COMPARISON_STATUS_LABELS[comparison.status],
+            "Quellen_mit_Daten": _join(comparison.providers_with_data),
+            "Uebereinstimmende_Attribute": _join(comparison.agreeing_attributes),
+            "Abweichende_Attribute": _join(comparison.conflicting_attributes),
         }
-        for status in statuses
+        for comparison in comparisons
     ]
-    return pd.DataFrame(rows, columns=list(ONLINE_STATUS_COLUMNS))
+    return pd.DataFrame(rows, columns=list(PROVIDER_COMPARISON_COLUMNS))
 
 
 def write_full_workbook(
@@ -330,11 +430,13 @@ def write_full_workbook(
     online_suggestions: pd.DataFrame,
     online_status: pd.DataFrame,
     output_path: Path,
+    comparison: pd.DataFrame | None = None,
 ) -> None:
     """Schreibt Analyse, Zusammenfassung und Online-Blätter in eine neue Datei.
 
     Die vorhandenen Blätter ``Analyse`` und ``Zusammenfassung`` bleiben erhalten;
-    zusätzlich werden ``Online_Vorschlaege`` und ``Online_Abgleich`` geschrieben.
+    zusätzlich werden ``Online_Vorschlaege`` und ``Online_Abgleich`` sowie
+    optional ``Provider_Vergleich`` geschrieben.
 
     Args:
         analysis: Der Analyse-``DataFrame``.
@@ -342,6 +444,8 @@ def write_full_workbook(
         online_suggestions: Der ``DataFrame`` der Online-Vorschläge.
         online_status: Der ``DataFrame`` des Online-Abgleichstatus.
         output_path: Zielpfad der neu zu erzeugenden Datei.
+        comparison: Optionaler ``DataFrame`` des Quellenvergleichs; wird nur
+            geschrieben, wenn er übergeben wird.
     """
     with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
         analysis.to_excel(writer, sheet_name=ANALYSIS_SHEET_NAME, index=False)
@@ -352,6 +456,10 @@ def write_full_workbook(
         online_status.to_excel(
             writer, sheet_name=ONLINE_STATUS_SHEET_NAME, index=False
         )
+        if comparison is not None:
+            comparison.to_excel(
+                writer, sheet_name=PROVIDER_COMPARISON_SHEET_NAME, index=False
+            )
 
 
 def export_analysis_with_online(
@@ -361,6 +469,8 @@ def export_analysis_with_online(
     statuses: Sequence[ArticleOnlineStatus],
     input_path: Path,
     output_path: Path | None = None,
+    *,
+    comparisons: Sequence[ProviderComparison] | None = None,
 ) -> Path:
     """Erzeugt die Analysedatei inklusive Online-Abgleich-Blättern.
 
@@ -372,6 +482,8 @@ def export_analysis_with_online(
         input_path: Pfad der Eingabedatei (für die Namensableitung).
         output_path: Optionaler expliziter Zielpfad; ohne Angabe wird
             ``<Dateiname>_analyse.xlsx`` verwendet.
+        comparisons: Optionaler Quellenvergleich je Artikel; nur wenn nicht leer
+            wird das Blatt ``Provider_Vergleich`` geschrieben.
 
     Returns:
         Der Pfad der geschriebenen Analysedatei.
@@ -384,5 +496,17 @@ def export_analysis_with_online(
     summary = build_summary_frame(results)
     online_suggestions = build_online_suggestions_frame(suggestions)
     online_status = build_online_status_frame(statuses)
-    write_full_workbook(analysis, summary, online_suggestions, online_status, target)
+    comparison_frame = (
+        build_provider_comparison_frame(comparisons)
+        if comparisons
+        else None
+    )
+    write_full_workbook(
+        analysis,
+        summary,
+        online_suggestions,
+        online_status,
+        target,
+        comparison_frame,
+    )
     return target

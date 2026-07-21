@@ -19,7 +19,11 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 
-from avor_smart_attribute_manager.analysis.attribute_mapping import map_parameters
+from avor_smart_attribute_manager.analysis.attribute_mapping import (
+    MappedAttribute,
+    Mapper,
+    mapper_for_provider,
+)
 from avor_smart_attribute_manager.analysis.value_comparison import values_match
 from avor_smart_attribute_manager.datasources.cache import SearchCache
 from avor_smart_attribute_manager.datasources.normalization import (
@@ -42,16 +46,27 @@ from avor_smart_attribute_manager.models.article import Article
 from avor_smart_attribute_manager.models.online import (
     ArticleOnlineStatus,
     AttributeSuggestion,
+    ComparisonStatus,
     MatchConfidence,
     MatchStatus,
     OnlineAnalysis,
     ProductInfo,
+    ProviderComparison,
     SuggestionAction,
 )
 from avor_smart_attribute_manager.rules.attribute_rules import AttributeRules
 
 #: Callable-Typ für die Zeitquelle (injizierbar für Tests).
 Clock = Callable[[], datetime]
+
+#: Provider-Antwortstatus, die auf einen Fehler-Match-Status abgebildet werden.
+_ERROR_STATUS_MAP: dict[ProviderResponseStatus, MatchStatus] = {
+    ProviderResponseStatus.RATE_LIMITED: MatchStatus.RATE_LIMITED,
+    ProviderResponseStatus.AUTH_ERROR: MatchStatus.AUTH_ERROR,
+    ProviderResponseStatus.GRAPHQL_ERROR: MatchStatus.GRAPHQL_ERROR,
+    ProviderResponseStatus.PART_LIMIT_REACHED: MatchStatus.PART_LIMIT_REACHED,
+    ProviderResponseStatus.API_ERROR: MatchStatus.API_ERROR,
+}
 
 
 def _utc_now() -> datetime:
@@ -106,7 +121,8 @@ def _consensus_mapping(
     products: Sequence[ProviderProduct],
     sachgruppe: str,
     allowed_attributes: tuple[str, ...],
-) -> dict[str, str]:
+    mapper: Mapper,
+) -> dict[str, MappedAttribute]:
     """Ermittelt nur die Attribute, in denen alle Treffer übereinstimmen.
 
     Damit wird bei mehreren/unsicheren Treffern nichts geraten: Ein Attribut
@@ -114,26 +130,25 @@ def _consensus_mapping(
     Wert liefert.
     """
     per_product = [
-        map_parameters(product.parameters, sachgruppe, allowed_attributes)
-        for product in products
+        mapper(product, sachgruppe, allowed_attributes) for product in products
     ]
     if not per_product:
         return {}
 
-    consensus: dict[str, str] = {}
-    for attribute, value in per_product[0].items():
+    consensus: dict[str, MappedAttribute] = {}
+    for attribute, mapped in per_product[0].items():
         if all(
-            attribute in mapping and values_match(mapping[attribute], value)
+            attribute in mapping and values_match(mapping[attribute].value, mapped.value)
             for mapping in per_product[1:]
         ):
-            consensus[attribute] = value
+            consensus[attribute] = mapped
     return consensus
 
 
 def _suggestions_for(
     article: Article,
     sachgruppe_label: str,
-    mapped: dict[str, str],
+    mapped: dict[str, MappedAttribute],
     product: ProviderProduct,
     provider: str,
     match_status: MatchStatus,
@@ -141,7 +156,8 @@ def _suggestions_for(
 ) -> list[AttributeSuggestion]:
     """Erzeugt Vorschläge aus bereits gemappten (erlaubten) Attributwerten."""
     suggestions: list[AttributeSuggestion] = []
-    for attribute, suggested_value in mapped.items():
+    for attribute, mapped_attribute in mapped.items():
+        suggested_value = mapped_attribute.value
         erp_value = _attribute_str(article, attribute)
         if erp_value is None:
             action = SuggestionAction.ERGAENZEN
@@ -169,6 +185,9 @@ def _suggestions_for(
                 product_url=product.product_url,
                 datasheet_url=product.datasheet_url,
                 reason=reason,
+                source_parameter=mapped_attribute.source_parameter,
+                raw_value=mapped_attribute.raw_value,
+                unit=mapped_attribute.unit,
             )
         )
     return suggestions
@@ -221,6 +240,7 @@ def _analyze_article(
     provider: ComponentDataProvider,
     cache: SearchCache | None,
     clock: Clock,
+    mapper: Mapper,
 ) -> tuple[ArticleOnlineStatus, list[AttributeSuggestion]]:
     """Führt den Online-Abgleich für einen einzelnen Artikel durch."""
     sachgruppe_label = _display_sachgruppe(article)
@@ -268,10 +288,9 @@ def _analyze_article(
         if cache is not None:
             cache.set(provider.name, mpn, manufacturer, result)
 
-    if result.status is ProviderResponseStatus.RATE_LIMITED:
-        return status(MatchStatus.RATE_LIMITED, mpn=mpn, message=result.error_message), []
-    if result.status is ProviderResponseStatus.API_ERROR:
-        return status(MatchStatus.API_ERROR, mpn=mpn, message=result.error_message), []
+    error_status = _ERROR_STATUS_MAP.get(result.status)
+    if error_status is not None:
+        return status(error_status, mpn=mpn, message=result.error_message), []
 
     match_status, matched = _match_products(result.products, mpn, manufacturer)
     if not matched:
@@ -282,10 +301,12 @@ def _analyze_article(
 
     if match_status is MatchStatus.EXACT_MATCH:
         confidence = MatchConfidence.HOCH if manufacturer else MatchConfidence.MITTEL
-        mapped = map_parameters(primary.parameters, article.sachgruppenklasse, allowed)
+        mapped = mapper(primary, article.sachgruppenklasse, allowed)
     else:
         confidence = MatchConfidence.NIEDRIG
-        mapped = _consensus_mapping(matched, article.sachgruppenklasse, allowed)
+        mapped = _consensus_mapping(
+            matched, article.sachgruppenklasse, allowed, mapper
+        )
 
     product_info = _build_product_info(
         article,
@@ -335,12 +356,154 @@ def run_online_analysis(
         Eine :class:`OnlineAnalysis` mit einem Status je Artikel und allen
         erzeugten Vorschlägen.
     """
+    mapper = mapper_for_provider(provider.name)
     statuses: list[ArticleOnlineStatus] = []
     suggestions: list[AttributeSuggestion] = []
     for article in articles:
         article_status, article_suggestions = _analyze_article(
-            article, rules, provider, cache, clock
+            article, rules, provider, cache, clock, mapper
         )
         statuses.append(article_status)
         suggestions.extend(article_suggestions)
     return OnlineAnalysis(statuses=statuses, suggestions=suggestions)
+
+
+def _only_data_status(provider_name: str) -> ComparisonStatus:
+    """Bestimmt den ``ONLY_*_DATA``-Status anhand des Providernamens."""
+    if provider_name.startswith("digikey"):
+        return ComparisonStatus.ONLY_DIGIKEY_DATA
+    if provider_name.startswith("nexar"):
+        return ComparisonStatus.ONLY_NEXAR_DATA
+    return ComparisonStatus.ONLY_MOUSER_DATA
+
+
+def compute_provider_comparisons(
+    articles: Sequence[Article],
+    suggestions: Sequence[AttributeSuggestion],
+) -> list[ProviderComparison]:
+    """Vergleicht die strukturierten Attributwerte mehrerer Provider je Artikel.
+
+    Es fliessen ausschliesslich strukturierte, bereits gemappte Attributwerte
+    (aus den Vorschlägen) ein – niemals Freitext. Für jeden Artikel wird
+    festgestellt, ob mehrere Quellen übereinstimmen oder sich widersprechen.
+
+    Args:
+        articles: Die geprüften Artikel (bestimmen Reihenfolge und Metadaten).
+        suggestions: Alle Vorschläge sämtlicher Provider.
+
+    Returns:
+        Eine :class:`ProviderComparison` je Artikel.
+    """
+    by_article: dict[str, list[AttributeSuggestion]] = {}
+    for suggestion in suggestions:
+        by_article.setdefault(suggestion.article_number, []).append(suggestion)
+
+    comparisons: list[ProviderComparison] = []
+    for article in articles:
+        subs = by_article.get(article.article_number, [])
+        sachgruppe_label = _display_sachgruppe(article)
+        manufacturer = _attribute_str(article, MANUFACTURER_COLUMN)
+        mpn = _attribute_str(article, MANUFACTURER_PART_NUMBER_COLUMN)
+
+        providers: list[str] = []
+        # attribute -> provider -> value
+        attr_values: dict[str, dict[str, str]] = {}
+        for suggestion in subs:
+            if suggestion.provider not in providers:
+                providers.append(suggestion.provider)
+            attr_values.setdefault(suggestion.attribute, {}).setdefault(
+                suggestion.provider, suggestion.suggested_value
+            )
+
+        if not providers:
+            comparisons.append(
+                ProviderComparison(
+                    article_number=article.article_number,
+                    sachgruppe=sachgruppe_label,
+                    manufacturer=manufacturer,
+                    manufacturer_part_number=mpn,
+                    status=ComparisonStatus.NO_TECHNICAL_DATA,
+                )
+            )
+            continue
+
+        if len(providers) == 1:
+            comparisons.append(
+                ProviderComparison(
+                    article_number=article.article_number,
+                    sachgruppe=sachgruppe_label,
+                    manufacturer=manufacturer,
+                    manufacturer_part_number=mpn,
+                    status=_only_data_status(providers[0]),
+                    providers_with_data=tuple(providers),
+                )
+            )
+            continue
+
+        agreeing: list[str] = []
+        conflicting: list[str] = []
+        for attribute, per_provider in attr_values.items():
+            if len(per_provider) < 2:
+                continue
+            values = list(per_provider.values())
+            if all(values_match(values[0], value) for value in values[1:]):
+                agreeing.append(attribute)
+            else:
+                conflicting.append(attribute)
+
+        if conflicting:
+            status_value = ComparisonStatus.SOURCES_CONFLICT
+        elif len(providers) >= 3 and agreeing:
+            status_value = ComparisonStatus.MULTIPLE_STRUCTURED_SOURCES_AGREE
+        else:
+            status_value = ComparisonStatus.SOURCES_AGREE
+
+        comparisons.append(
+            ProviderComparison(
+                article_number=article.article_number,
+                sachgruppe=sachgruppe_label,
+                manufacturer=manufacturer,
+                manufacturer_part_number=mpn,
+                status=status_value,
+                providers_with_data=tuple(providers),
+                agreeing_attributes=tuple(agreeing),
+                conflicting_attributes=tuple(conflicting),
+            )
+        )
+    return comparisons
+
+
+def run_multi_provider_analysis(
+    articles: Sequence[Article],
+    rules: AttributeRules,
+    providers: Sequence[ComponentDataProvider],
+    cache: SearchCache | None = None,
+    clock: Clock = _utc_now,
+) -> tuple[OnlineAnalysis, list[ProviderComparison]]:
+    """Führt den Online-Abgleich für mehrere Provider unabhängig voneinander aus.
+
+    Jeder Provider wird eigenständig abgefragt; die Ergebnisse (Status je Artikel
+    und Vorschläge) werden zusammengeführt. Zusätzlich wird je Artikel ein
+    Quellenvergleich berechnet.
+
+    Args:
+        articles: Die zu prüfenden Artikel (in Zeilenreihenfolge).
+        rules: Das Regelwerk (bestimmt erlaubte Attribute je Sachgruppe).
+        providers: Die zu nutzenden Datenquellen (Reihenfolge bleibt erhalten).
+        cache: Optionaler lokaler Cache (nach Provider getrennt).
+        clock: Zeitquelle (injizierbar für Tests).
+
+    Returns:
+        Ein Tupel aus der zusammengeführten :class:`OnlineAnalysis` und der Liste
+        der Quellenvergleiche je Artikel.
+    """
+    statuses: list[ArticleOnlineStatus] = []
+    suggestions: list[AttributeSuggestion] = []
+    for provider in providers:
+        analysis = run_online_analysis(articles, rules, provider, cache, clock)
+        statuses.extend(analysis.statuses)
+        suggestions.extend(analysis.suggestions)
+
+    combined = OnlineAnalysis(statuses=statuses, suggestions=suggestions)
+    comparisons = compute_provider_comparisons(articles, suggestions)
+    return combined, comparisons

@@ -21,8 +21,10 @@ from avor_smart_attribute_manager.analysis.attribute_analyzer import (
     OnlineAnalysisExport,
     analyze_and_export,
     analyze_and_export_with_online,
+    build_providers,
 )
 from avor_smart_attribute_manager.config.settings import (
+    ALL_PROVIDERS_KEYWORD,
     SUPPORTED_PROVIDERS,
     load_settings,
 )
@@ -67,11 +69,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     analyse.add_argument(
         "--provider",
-        choices=SUPPORTED_PROVIDERS,
+        action="append",
+        choices=[*SUPPORTED_PROVIDERS, ALL_PROVIDERS_KEYWORD],
         default=None,
         help=(
-            "Datenquelle für den Online-Abgleich (Standard: Konfiguration bzw. "
-            "mouser)."
+            "Datenquelle(n) für den Online-Abgleich. Mehrfach angebbar für einen "
+            "parallelen, unabhängigen Abgleich (z. B. '--provider mouser "
+            "--provider nexar'); 'all' verwendet alle Provider. Standard: "
+            "Konfiguration bzw. mouser."
         ),
     )
     analyse.add_argument(
@@ -139,6 +144,25 @@ def _print_online_summary(export: OnlineAnalysisExport) -> None:
     print(f"    Artikel abgeglichen: {len(statuses)}")
     print(f"    Exakte Treffer: {exact}")
     print(f"    Vorschläge: {len(export.online.suggestions)}")
+    if export.comparisons:
+        print(f"    Quellenvergleiche: {len(export.comparisons)}")
+
+
+def _resolve_provider_names(overrides: list[str] | None) -> list[str] | None:
+    """Ermittelt die eindeutigen Providernamen aus den CLI-Angaben.
+
+    Args:
+        overrides: Rohliste der ``--provider``-Angaben (oder ``None``).
+
+    Returns:
+        Die aufgelöste, duplikatfreie Providerliste; ``None``, wenn keine Angabe
+        vorliegt (dann greift der Standard-Provider aus der Konfiguration).
+    """
+    if not overrides:
+        return None
+    if ALL_PROVIDERS_KEYWORD in overrides:
+        return list(SUPPORTED_PROVIDERS)
+    return list(dict.fromkeys(overrides))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -159,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
     online = False
     no_cache = False
     clear_cache = False
-    provider_override: str | None = None
+    provider_overrides: list[str] | None = None
     digikey_version_override: str | None = None
     if args.command == "analyse":
         input_path = args.file
@@ -168,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         online = args.online
         no_cache = args.no_cache
         clear_cache = args.clear_cache
-        provider_override = args.provider
+        provider_overrides = args.provider
         digikey_version_override = args.digikey_version
     else:
         selected = _select_input_file()
@@ -184,8 +208,6 @@ def main(argv: list[str] | None = None) -> int:
 
     if online:
         settings = load_settings()
-        if provider_override is not None:
-            settings = dataclasses.replace(settings, provider=provider_override)
         if digikey_version_override is not None:
             settings = dataclasses.replace(
                 settings,
@@ -197,11 +219,18 @@ def main(argv: list[str] | None = None) -> int:
             settings = dataclasses.replace(settings, use_cache=False)
         if clear_cache:
             SearchCache(settings.cache_dir, settings.cache_ttl_seconds).clear()
+        provider_names = _resolve_provider_names(provider_overrides)
         try:
+            providers = (
+                build_providers(settings, provider_names)
+                if provider_names is not None
+                else None
+            )
             online_export = analyze_and_export_with_online(
                 input_path,
                 output_path=output_path,
                 rules_path=rules_path,
+                providers=providers,
                 settings=settings,
             )
         except MissingApiKeyError as error:
