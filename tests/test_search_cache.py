@@ -9,6 +9,7 @@ from avor_smart_attribute_manager.datasources.provider import (
     ProviderProduct,
     ProviderResponseStatus,
     ProviderSearchResult,
+    ProviderSpec,
 )
 
 
@@ -81,3 +82,47 @@ def test_clear_removes_cache(tmp_path: Path) -> None:
     cache.clear()
     assert cache.get("mouser", "LM317T", None) is None
     assert not (tmp_path).exists()
+
+
+def _nexar_result() -> ProviderSearchResult:
+    return ProviderSearchResult(
+        provider="nexar-search-mpn-v1",
+        status=ProviderResponseStatus.OK,
+        products=(
+            ProviderProduct(
+                manufacturer_part_number="RC0805FR-071KL",
+                manufacturer="Yageo",
+                category="Resistors",
+                specs=(
+                    ProviderSpec(
+                        name="resistance",
+                        display_value="1 kΩ",
+                        raw_value="1000",
+                        unit="Ω",
+                    ),
+                ),
+            ),
+        ),
+    )
+
+
+def test_specs_survive_cache_roundtrip(tmp_path: Path) -> None:
+    cache = SearchCache(tmp_path)
+    cache.set("nexar-search-mpn-v1", "RC0805FR-071KL", "Yageo", _nexar_result())
+
+    cached = cache.get("nexar-search-mpn-v1", "RC0805FR-071KL", "Yageo")
+
+    assert cached is not None
+    (product,) = cached.products
+    (spec,) = product.specs
+    assert spec.name == "resistance"
+    assert spec.display_value == "1 kΩ"
+    assert spec.raw_value == "1000"
+    assert spec.unit == "Ω"
+
+
+def test_query_version_separates_cache(tmp_path: Path) -> None:
+    cache = SearchCache(tmp_path)
+    cache.set("nexar-search-mpn-v1", "RC0805FR-071KL", "Yageo", _nexar_result())
+    # Andere Query-/Schema-Version im Providernamen → getrennter Cache.
+    assert cache.get("nexar-search-mpn-v2", "RC0805FR-071KL", "Yageo") is None
