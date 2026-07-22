@@ -18,15 +18,18 @@ from avor_smart_attribute_manager.datasources.provider import (
 
 
 class _FakeProvider(ComponentDataProvider):
+    def __init__(self, provider_name: str = "mouser") -> None:
+        self._name = provider_name
+
     @property
     def name(self) -> str:
-        return "mouser"
+        return self._name
 
     def search_exact(
         self, manufacturer_part_number: str, manufacturer: str | None = None
     ) -> ProviderSearchResult:
         return ProviderSearchResult(
-            provider="mouser",
+            provider=self._name,
             status=ProviderResponseStatus.OK,
             products=(
                 ProviderProduct(
@@ -107,3 +110,53 @@ def test_online_creates_sheets(
     assert "Online_Vorschlaege" in sheets
     assert "Online_Abgleich" in sheets
     assert sheets["Online_Vorschlaege"].iloc[0]["Attribut"] == "Toleranz"
+
+
+def test_resolve_provider_names_default_is_none() -> None:
+    assert cli._resolve_provider_names(None) is None
+    assert cli._resolve_provider_names([]) is None
+
+
+def test_resolve_provider_names_all_keyword() -> None:
+    from avor_smart_attribute_manager.config.settings import SUPPORTED_PROVIDERS
+
+    assert cli._resolve_provider_names(["all"]) == list(SUPPORTED_PROVIDERS)
+
+
+def test_resolve_provider_names_dedupes_and_keeps_order() -> None:
+    assert cli._resolve_provider_names(["nexar", "mouser", "nexar"]) == [
+        "nexar",
+        "mouser",
+    ]
+
+
+def test_online_multiple_providers_create_comparison_sheet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _build_providers(_settings: object, names: list[str]) -> list[_FakeProvider]:
+        return [_FakeProvider(name) for name in names]
+
+    monkeypatch.setattr(cli, "build_providers", _build_providers)
+    monkeypatch.chdir(tmp_path)
+    erp = _write_erp(tmp_path / "ERP.xlsx")
+    rules = _write_rules(tmp_path / "rules.json")
+
+    exit_code = cli.main(
+        [
+            "analyse",
+            str(erp),
+            "--rules",
+            str(rules),
+            "--online",
+            "--no-cache",
+            "--provider",
+            "mouser",
+            "--provider",
+            "digikey",
+        ]
+    )
+
+    assert exit_code == 0
+    sheets = pd.read_excel(tmp_path / "ERP_analyse.xlsx", sheet_name=None)
+    assert "Provider_Vergleich" in sheets
+    assert not sheets["Provider_Vergleich"].empty

@@ -9,6 +9,7 @@ import pytest
 from avor_smart_attribute_manager.config.settings import (
     DIGIKEY_PROVIDER,
     MOUSER_PROVIDER,
+    NEXAR_PROVIDER,
     load_settings,
     parse_dotenv,
 )
@@ -62,6 +63,11 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "DIGIKEY_CLIENT_SECRET",
         "DIGIKEY_API_VERSION",
         "DIGIKEY_BASE_URL",
+        "NEXAR_CLIENT_ID",
+        "NEXAR_CLIENT_SECRET",
+        "NEXAR_ACCESS_TOKEN",
+        "NEXAR_TOKEN_URL",
+        "NEXAR_GRAPHQL_URL",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -121,3 +127,39 @@ def test_invalid_digikey_version_falls_back_to_v4(
 
     settings = load_settings(dotenv)
     assert settings.digikey_api_version is DigiKeyApiVersion.V4
+
+
+def test_nexar_settings_from_dotenv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clean_env(monkeypatch)
+    dotenv = tmp_path / ".env"
+    dotenv.write_text(
+        "\n".join(
+            [
+                "AVOR_PROVIDER=nexar",
+                "NEXAR_CLIENT_ID=nid",
+                "NEXAR_CLIENT_SECRET=nsecret",
+                "NEXAR_ACCESS_TOKEN=ntoken",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    settings = load_settings(dotenv)
+    assert settings.provider == NEXAR_PROVIDER
+    assert settings.nexar_client_id == "nid"
+    assert settings.nexar_client_secret == "nsecret"
+    assert settings.nexar_access_token == "ntoken"
+
+
+def test_nexar_env_overrides_dotenv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clean_env(monkeypatch)
+    dotenv = tmp_path / ".env"
+    dotenv.write_text("NEXAR_ACCESS_TOKEN=from_dotenv\n", encoding="utf-8")
+    monkeypatch.setenv("NEXAR_ACCESS_TOKEN", "from_env")
+
+    settings = load_settings(dotenv)
+    assert settings.nexar_access_token == "from_env"

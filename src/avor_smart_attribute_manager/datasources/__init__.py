@@ -26,6 +26,7 @@ from avor_smart_attribute_manager.datasources.provider import (
     ProviderProduct,
     ProviderResponseStatus,
     ProviderSearchResult,
+    ProviderSpec,
 )
 
 __all__ = [
@@ -36,4 +37,5 @@ __all__ = [
     "ProviderProduct",
     "ProviderResponseStatus",
     "ProviderSearchResult",
+    "ProviderSpec",
 ]

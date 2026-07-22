@@ -172,7 +172,7 @@ Sachgruppe vorangestellt (Duplikate entfernt, Reihenfolge beibehalten).
 
 Details zu Schema und Ablauf: [`docs/architecture.md`](docs/architecture.md).
 
-## Online-Abgleich über die Herstellerteilenummer (Mouser / DigiKey)
+## Online-Abgleich über die Herstellerteilenummer (Mouser / DigiKey / Nexar)
 
 Optional können fehlende oder möglicherweise falsche Attribute anhand der
 `HerstellerNr` **online** abgeglichen werden. Es werden ausschliesslich
@@ -180,24 +180,34 @@ Optional können fehlende oder möglicherweise falsche Attribute anhand der
 automatisch übernommen. Die manuell gepflegte `Benennung` wird **nicht** als
 Attributquelle verwendet.
 
-Angebunden sind zwei providerneutrale Datenquellen (kein Web-Scraping):
+Angebunden sind drei providerneutrale Datenquellen (kein Web-Scraping):
 
 - **Mouser Search API**
 - **DigiKey Product Information API** – wahlweise **V3** oder **V4** (konfigurierbar)
+- **Nexar Supply GraphQL** (`supSearchMpn`, siehe
+  [`docs/nexar_provider.md`](docs/nexar_provider.md))
 
-Die Fachlogik hängt nur von einem gemeinsamen, neutralen Datenmodell ab; weitere
-Quellen (Nexar, Hersteller-APIs, …) lassen sich ergänzen, ohne die Analyse zu
-ändern.
+Die Fachlogik hängt nur von einem gemeinsamen, neutralen Datenmodell ab; alle
+drei Provider sind einzeln oder gemeinsam nutzbar, ohne die Analyse zu ändern.
+Weitere Quellen (Hersteller-APIs, interne DB, …) lassen sich analog ergänzen.
 
 ### Datenquelle wählen
 
 Standard ist Mouser. Die Auswahl erfolgt über die Umgebungsvariable
-`AVOR_PROVIDER` (`mouser`/`digikey`) oder pro Lauf über `--provider`:
+`AVOR_PROVIDER` (`mouser`/`digikey`/`nexar`) oder pro Lauf über `--provider`.
+`--provider` ist **mehrfach** angebbar (unabhängiger, paralleler Abgleich);
+`--provider all` nutzt alle konfigurierten Provider:
 
 ```bash
 python main.py analyse "ERP_Export.xlsx" --online --provider digikey
 python main.py analyse "ERP_Export.xlsx" --online --provider digikey --digikey-version v3
+python main.py analyse "ERP_Export.xlsx" --online --provider nexar
+python main.py analyse "ERP_Export.xlsx" --online --provider mouser --provider nexar
+python main.py analyse "ERP_Export.xlsx" --online --provider all
 ```
+
+Bei mehreren Providern entsteht zusätzlich das Blatt `Provider_Vergleich` mit
+einem Quellenvergleich je Artikel.
 
 > **Hinweis (aus dem echten Mouser-Ende-zu-Ende-Test, siehe
 > [`docs/mouser_e2e_report.md`](docs/mouser_e2e_report.md)):** Die Mouser Search
@@ -242,6 +252,26 @@ python main.py analyse "ERP_Export.xlsx" --online --provider digikey --digikey-v
    `--digikey-version`) frei wählbar und **nicht** in der Fachlogik verdrahtet.
    Für die Sandbox `DIGIKEY_BASE_URL=https://sandbox-api.digikey.com` setzen.
 
+### Nexar-API-Zugang einrichten
+
+1. Bei Nexar registrieren (<https://nexar.com/>) und eine App mit Zugang zur
+   **Supply**-API anlegen (OAuth2, Client Credentials).
+2. Entweder ein statisches Access-Token **oder** Client-ID/Secret bereitstellen –
+   **niemals** ins Repository committen:
+
+   ```bash
+   # Variante A: statisches Access-Token (hat Vorrang)
+   export NEXAR_ACCESS_TOKEN="dein_token"
+
+   # Variante B: OAuth2 Client Credentials
+   export NEXAR_CLIENT_ID="deine_client_id"
+   export NEXAR_CLIENT_SECRET="dein_client_secret"
+   # alternativ die Werte in eine lokale .env eintragen (siehe .env.example)
+   ```
+
+3. Details, GraphQL-Query, Mapping und Einschränkungen:
+   [`docs/nexar_provider.md`](docs/nexar_provider.md).
+
 Fehlen die Zugangsdaten des gewählten Providers, bricht der Online-Modus mit
 einer verständlichen Meldung ab (die reine Datenqualitätsanalyse funktioniert
 weiterhin ohne Zugangsdaten).
@@ -276,6 +306,7 @@ Die Ausgabe erweitert die Analysedatei um zwei Tabellenblätter (die Blätter
 | `Kein exakter Treffer` | Kein Datensatz mit passender Teilenummer. |
 | `Keine Herstellerteilenummer` | Im ERP keine `HerstellerNr` hinterlegt. |
 | `API-Fehler` / `Rate-Limit` | Technischer Fehler; übrige Artikel werden trotzdem verarbeitet. |
+| `Authentifizierungsfehler` / `GraphQL-Fehler` / `Teilelimit erreicht` | Nexar-spezifische Fehlerbilder (Auth/GraphQL/Kontingent). |
 
 ### Konfidenz
 
@@ -285,8 +316,10 @@ Die Ausgabe erweitert die Analysedatei um zwei Tabellenblätter (die Blätter
 | `Mittel` | exakte Teilenummer, ERP-Hersteller fehlt, genau ein plausibler Treffer. |
 | `Niedrig` | mehrere Treffer oder Herstellerabweichung – nur als Prüfhinweis. |
 
-Der `Provider` (z. B. `mouser`, `digikey-v4`) wird je Vorschlag und je Artikel
-in der Ausgabe geführt, sodass die verwendete Quelle nachvollziehbar bleibt.
+Der `Provider` (z. B. `mouser`, `digikey-v4`, `nexar-search-mpn-v1`) wird je
+Vorschlag und je Artikel in der Ausgabe geführt, sodass die verwendete Quelle
+nachvollziehbar bleibt. Zusätzlich führen die Vorschläge `Rohwert`, `Einheit` und
+`Quelle_Parameter` zur vollständigen Nachvollziehbarkeit.
 
 ### Aktion
 
@@ -323,8 +356,8 @@ Grobe, iterative Ausbaustufen (Reihenfolge kann sich ändern):
 4. **Excel-Export** – Ausgabe der Prüfergebnisse/Vorschläge in neue Dateien.
 5. **GUI** – Bedienoberfläche (PySide6) zur Anzeige und Auswahl von Vorschlägen.
 6. **Herstellerdaten & Datenquellen** *(begonnen)* – Abgleich über die
-   Herstellerteilenummer; Mouser als erster Provider über eine gemeinsame,
-   providerneutrale Schnittstelle (weitere Quellen folgen).
+   Herstellerteilenummer; Mouser, DigiKey und Nexar als unabhängige Provider
+   über eine gemeinsame, providerneutrale Schnittstelle (weitere Quellen folgen).
 7. **KI-Unterstützung** *(optional)* – klar gekapselte, optionale Vorschläge.
 
 ## Grundprinzipien

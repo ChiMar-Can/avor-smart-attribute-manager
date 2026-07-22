@@ -26,6 +26,7 @@ from avor_smart_attribute_manager.datasources.provider import (
     ProviderProduct,
     ProviderResponseStatus,
     ProviderSearchResult,
+    ProviderSpec,
 )
 
 #: Standardverzeichnis des Caches (relativ zum Arbeitsverzeichnis).
@@ -33,6 +34,32 @@ DEFAULT_CACHE_DIR = Path(".cache")
 
 #: Standard-Gültigkeitsdauer eines Cache-Eintrags in Sekunden (30 Tage).
 DEFAULT_TTL_SECONDS = 30 * 24 * 60 * 60
+
+
+def _spec_to_dict(spec: ProviderSpec) -> dict[str, object]:
+    """Serialisiert eine :class:`ProviderSpec` zu einem JSON-Objekt."""
+    return {
+        "name": spec.name,
+        "display_value": spec.display_value,
+        "raw_value": spec.raw_value,
+        "unit": spec.unit,
+    }
+
+
+def _spec_from_dict(data: dict[str, object]) -> ProviderSpec | None:
+    """Deserialisiert eine :class:`ProviderSpec` aus einem JSON-Objekt."""
+    name = data.get("name")
+    display_value = data.get("display_value")
+    if not isinstance(name, str) or not isinstance(display_value, str):
+        return None
+    raw_value = data.get("raw_value")
+    unit = data.get("unit")
+    return ProviderSpec(
+        name=name,
+        display_value=display_value,
+        raw_value=raw_value if isinstance(raw_value, str) else None,
+        unit=unit if isinstance(unit, str) else None,
+    )
 
 
 def _product_to_dict(product: ProviderProduct) -> dict[str, object]:
@@ -45,6 +72,7 @@ def _product_to_dict(product: ProviderProduct) -> dict[str, object]:
         "datasheet_url": product.datasheet_url,
         "product_url": product.product_url,
         "parameters": dict(product.parameters),
+        "specs": [_spec_to_dict(spec) for spec in product.specs],
     }
 
 
@@ -61,6 +89,18 @@ def _product_from_dict(data: dict[str, object]) -> ProviderProduct:
         value = data.get(field)
         return str(value) if isinstance(value, str) else None
 
+    raw_specs = data.get("specs")
+    specs = (
+        tuple(
+            spec
+            for item in raw_specs
+            if isinstance(item, dict)
+            and (spec := _spec_from_dict(item)) is not None
+        )
+        if isinstance(raw_specs, list)
+        else ()
+    )
+
     return ProviderProduct(
         manufacturer_part_number=_optional("manufacturer_part_number"),
         manufacturer=_optional("manufacturer"),
@@ -69,6 +109,7 @@ def _product_from_dict(data: dict[str, object]) -> ProviderProduct:
         datasheet_url=_optional("datasheet_url"),
         product_url=_optional("product_url"),
         parameters=parameters,
+        specs=specs,
     )
 
 

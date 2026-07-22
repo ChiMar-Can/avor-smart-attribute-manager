@@ -38,8 +38,8 @@ avor-smart-attribute-manager = "avor_smart_attribute_manager.__main__:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-# Das Regelwerk wird als Paketdaten mitgeliefert.
-"avor_smart_attribute_manager" = ["config/*.json"]
+# Das Regelwerk und die Provider-Mappings werden als Paketdaten mitgeliefert.
+"avor_smart_attribute_manager" = ["config/*.json", "config/provider_mappings/*.json"]
 
 [tool.ruff]
 line-length = 100

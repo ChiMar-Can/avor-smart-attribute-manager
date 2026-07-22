@@ -42,14 +42,41 @@ from avor_smart_attribute_manager.datasources.mouser import (
     DEFAULT_MAX_RETRIES,
     DEFAULT_TIMEOUT_SECONDS,
 )
+from avor_smart_attribute_manager.datasources.nexar import (
+    ACCESS_TOKEN_ENV_VAR as NEXAR_ACCESS_TOKEN_ENV_VAR,
+)
+from avor_smart_attribute_manager.datasources.nexar import (
+    CLIENT_ID_ENV_VAR as NEXAR_CLIENT_ID_ENV_VAR,
+)
+from avor_smart_attribute_manager.datasources.nexar import (
+    CLIENT_SECRET_ENV_VAR as NEXAR_CLIENT_SECRET_ENV_VAR,
+)
+from avor_smart_attribute_manager.datasources.nexar import (
+    DEFAULT_GRAPHQL_URL as NEXAR_DEFAULT_GRAPHQL_URL,
+)
+from avor_smart_attribute_manager.datasources.nexar import (
+    DEFAULT_TOKEN_URL as NEXAR_DEFAULT_TOKEN_URL,
+)
 
-#: Name der Umgebungsvariable zur Auswahl der Datenquelle (``mouser``/``digikey``).
+#: Name der Umgebungsvariable zur Auswahl der Datenquelle.
 PROVIDER_ENV_VAR = "AVOR_PROVIDER"
+
+#: Umgebungsvariablen für die Nexar-Endpunkte (optional konfigurierbar).
+NEXAR_TOKEN_URL_ENV_VAR = "NEXAR_TOKEN_URL"
+NEXAR_GRAPHQL_URL_ENV_VAR = "NEXAR_GRAPHQL_URL"
 
 #: Unterstützte Providernamen für die Auswahl.
 MOUSER_PROVIDER = "mouser"
 DIGIKEY_PROVIDER = "digikey"
-SUPPORTED_PROVIDERS: tuple[str, ...] = (MOUSER_PROVIDER, DIGIKEY_PROVIDER)
+NEXAR_PROVIDER = "nexar"
+SUPPORTED_PROVIDERS: tuple[str, ...] = (
+    MOUSER_PROVIDER,
+    DIGIKEY_PROVIDER,
+    NEXAR_PROVIDER,
+)
+
+#: Sonderwert der CLI, um alle unterstützten Provider gemeinsam zu verwenden.
+ALL_PROVIDERS_KEYWORD = "all"
 
 
 @dataclass(frozen=True)
@@ -63,6 +90,11 @@ class Settings:
         digikey_client_secret: DigiKey-Client-Secret (``None``, wenn nicht gesetzt).
         digikey_api_version: Verwendete DigiKey-API-Version (V3 oder V4).
         digikey_base_url: Basis-URL der DigiKey-API (Produktion/Sandbox).
+        nexar_client_id: Nexar-Client-ID (``None``, wenn nicht gesetzt).
+        nexar_client_secret: Nexar-Client-Secret (``None``, wenn nicht gesetzt).
+        nexar_access_token: Statisches Nexar-Token (Vorrang vor OAuth2).
+        nexar_token_url: OAuth-Token-Endpunkt von Nexar.
+        nexar_graphql_url: GraphQL-Endpunkt von Nexar.
         request_timeout: Timeout je API-Anfrage in Sekunden.
         max_retries: Zusätzliche Wiederholungen bei temporären Fehlern.
         backoff_seconds: Basiswert für exponentiellen Backoff.
@@ -77,6 +109,11 @@ class Settings:
     digikey_client_secret: str | None = None
     digikey_api_version: DigiKeyApiVersion = DigiKeyApiVersion.V4
     digikey_base_url: str = DIGIKEY_DEFAULT_BASE_URL
+    nexar_client_id: str | None = None
+    nexar_client_secret: str | None = None
+    nexar_access_token: str | None = None
+    nexar_token_url: str = NEXAR_DEFAULT_TOKEN_URL
+    nexar_graphql_url: str = NEXAR_DEFAULT_GRAPHQL_URL
     request_timeout: float = DEFAULT_TIMEOUT_SECONDS
     max_retries: int = DEFAULT_MAX_RETRIES
     backoff_seconds: float = DEFAULT_BACKOFF_SECONDS
@@ -167,6 +204,13 @@ def load_settings(dotenv_path: Path | None = None) -> Settings:
         env.get(DIGIKEY_BASE_URL_ENV_VAR, "").strip() or DIGIKEY_DEFAULT_BASE_URL
     )
 
+    nexar_token_url = (
+        env.get(NEXAR_TOKEN_URL_ENV_VAR, "").strip() or NEXAR_DEFAULT_TOKEN_URL
+    )
+    nexar_graphql_url = (
+        env.get(NEXAR_GRAPHQL_URL_ENV_VAR, "").strip() or NEXAR_DEFAULT_GRAPHQL_URL
+    )
+
     return Settings(
         provider=provider,
         mouser_api_key=api_key,
@@ -176,6 +220,11 @@ def load_settings(dotenv_path: Path | None = None) -> Settings:
         ),
         digikey_api_version=digikey_version,
         digikey_base_url=digikey_base_url,
+        nexar_client_id=env.get(NEXAR_CLIENT_ID_ENV_VAR, "").strip() or None,
+        nexar_client_secret=env.get(NEXAR_CLIENT_SECRET_ENV_VAR, "").strip() or None,
+        nexar_access_token=env.get(NEXAR_ACCESS_TOKEN_ENV_VAR, "").strip() or None,
+        nexar_token_url=nexar_token_url,
+        nexar_graphql_url=nexar_graphql_url,
         request_timeout=_get_float(env, "AVOR_REQUEST_TIMEOUT", DEFAULT_TIMEOUT_SECONDS),
         max_retries=_get_int(env, "AVOR_MAX_RETRIES", DEFAULT_MAX_RETRIES),
         backoff_seconds=_get_float(

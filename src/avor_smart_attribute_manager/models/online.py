@@ -32,6 +32,11 @@ class MatchStatus(Enum):
             es wurde nicht gesucht.
         API_ERROR: Die Abfrage ist mit einem technischen Fehler fehlgeschlagen.
         RATE_LIMITED: Die Datenquelle hat wegen eines Rate-Limits abgelehnt.
+        AUTH_ERROR: Authentifizierung/Autorisierung schlug fehl (z. B. ungültiges
+            oder abgelaufenes Token).
+        GRAPHQL_ERROR: Die (GraphQL-)Antwort enthielt Fehler und ist damit kein
+            gültiger Produktabruf.
+        PART_LIMIT_REACHED: Ein anbieterseitiges Abfrage-/Teilelimit wurde erreicht.
     """
 
     EXACT_MATCH = "exact_match"
@@ -41,6 +46,9 @@ class MatchStatus(Enum):
     NO_MPN = "no_mpn"
     API_ERROR = "api_error"
     RATE_LIMITED = "rate_limited"
+    AUTH_ERROR = "auth_error"
+    GRAPHQL_ERROR = "graphql_error"
+    PART_LIMIT_REACHED = "part_limit_reached"
 
 
 class MatchConfidence(Enum):
@@ -191,6 +199,10 @@ class AttributeSuggestion:
         product_url: Produkt-URL der Quelle (falls vorhanden).
         datasheet_url: Datenblatt-URL der Quelle (falls vorhanden).
         reason: Verständliche Begründung des Vorschlags.
+        source_parameter: Name des Quellparameters, aus dem der Wert stammt
+            (Nachvollziehbarkeit; ``None``, wenn nicht bekannt).
+        raw_value: Roher Quellwert vor der Aufbereitung (falls verfügbar).
+        unit: Einheit des Quellwerts (falls die Quelle sie getrennt liefert).
     """
 
     article_number: str
@@ -207,3 +219,60 @@ class AttributeSuggestion:
     product_url: str | None
     datasheet_url: str | None
     reason: str
+    source_parameter: str | None = None
+    raw_value: str | None = None
+    unit: str | None = None
+
+
+class ComparisonStatus(Enum):
+    """Ergebnis des providerübergreifenden Vergleichs strukturierter Technikdaten.
+
+    Es zählen ausschliesslich strukturierte technische Werte als Bestätigung;
+    Freitextbeschreibungen werden **nie** als Übereinstimmung gewertet.
+
+    Attributes:
+        NO_TECHNICAL_DATA: Keine Datenquelle lieferte verwertbare strukturierte
+            Technikwerte.
+        ONLY_MOUSER_DATA: Nur Mouser lieferte strukturierte Technikwerte.
+        ONLY_DIGIKEY_DATA: Nur DigiKey lieferte strukturierte Technikwerte.
+        ONLY_NEXAR_DATA: Nur Nexar lieferte strukturierte Technikwerte.
+        SOURCES_AGREE: Mehrere Quellen lieferten Technikwerte ohne Widerspruch,
+            aber ohne gemeinsam belegtes Attribut (disjunkte Abdeckung).
+        MULTIPLE_STRUCTURED_SOURCES_AGREE: Mehrere Quellen belegen dasselbe
+            Attribut mit (normalisiert) gleichem Wert.
+        SOURCES_CONFLICT: Mehrere Quellen widersprechen sich in mindestens einem
+            gemeinsam belegten Attribut.
+    """
+
+    NO_TECHNICAL_DATA = "no_technical_data"
+    ONLY_MOUSER_DATA = "only_mouser_data"
+    ONLY_DIGIKEY_DATA = "only_digikey_data"
+    ONLY_NEXAR_DATA = "only_nexar_data"
+    SOURCES_AGREE = "sources_agree"
+    MULTIPLE_STRUCTURED_SOURCES_AGREE = "multiple_structured_sources_agree"
+    SOURCES_CONFLICT = "sources_conflict"
+
+
+@dataclass(frozen=True)
+class ProviderComparison:
+    """Providerübergreifender Vergleich der Technikdaten eines Artikels.
+
+    Attributes:
+        article_number: ERP-Artikelnummer.
+        sachgruppe: Sachgruppe des Artikels.
+        manufacturer: Im ERP hinterlegter Hersteller (falls vorhanden).
+        manufacturer_part_number: Angefragte Herstellerteilenummer.
+        status: Ergebnis des Vergleichs (siehe :class:`ComparisonStatus`).
+        providers_with_data: Provider, die strukturierte Technikwerte lieferten.
+        agreeing_attributes: Gemeinsam belegte Attribute mit übereinstimmendem Wert.
+        conflicting_attributes: Gemeinsam belegte Attribute mit abweichendem Wert.
+    """
+
+    article_number: str
+    sachgruppe: str
+    manufacturer: str | None
+    manufacturer_part_number: str | None
+    status: ComparisonStatus
+    providers_with_data: tuple[str, ...] = ()
+    agreeing_attributes: tuple[str, ...] = ()
+    conflicting_attributes: tuple[str, ...] = ()

@@ -22,10 +22,12 @@ from avor_smart_attribute_manager.models.article import Article
 from avor_smart_attribute_manager.models.online import (
     ArticleOnlineStatus,
     AttributeSuggestion,
+    ComparisonStatus,
     MatchConfidence,
     MatchStatus,
     OnlineAnalysis,
     ProductInfo,
+    ProviderComparison,
     SuggestionAction,
 )
 from avor_smart_attribute_manager.models.validation import (
@@ -39,9 +41,11 @@ __all__ = [
     "ArticleValidationResult",
     "AttributeSuggestion",
     "CheckStatus",
+    "ComparisonStatus",
     "MatchConfidence",
     "MatchStatus",
     "OnlineAnalysis",
     "ProductInfo",
+    "ProviderComparison",
     "SuggestionAction",
 ]
