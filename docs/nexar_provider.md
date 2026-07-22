@@ -7,8 +7,9 @@ gemeinsam nutzbar.
 
 > **Status:** Die Integration stützt sich auf die öffentliche Nexar-GraphQL-
 > Introspection (verifiziertes Schema, siehe unten) sowie anonymisierte
-> Mock-Fixtures in den Tests. Ein Live-E2E-Lauf steht unter dem Vorbehalt
-> gültiger Nexar-Zugangsdaten (siehe „Manueller Ende-zu-Ende-Test“).
+> Mock-Fixtures in den Tests. Ein **Live-E2E-Lauf wurde durchgeführt** (OAuth2
+> Client Credentials, 18-Artikel-Beispieldatei) — Ergebnisse siehe
+> „Live-Ende-zu-Ende-Ergebnisse (anonymisiert)“.
 
 ## Architektur
 
@@ -231,6 +232,60 @@ strukturierte Spezifikationen je Sachgruppe, resultierende Vorschläge sowie der
 Vergleich mit Mouser. Ergebnisse anonymisiert dokumentieren (keine realen
 Artikel-/Firmendaten, keine Zugangsdaten, keine Roh-GraphQL-Antworten committen).
 
+## Live-Ende-zu-Ende-Ergebnisse (anonymisiert)
+
+Durchgeführt mit OAuth2 Client Credentials (`NEXAR_CLIENT_ID`/`NEXAR_CLIENT_SECRET`,
+nur Session-Secret) gegen die 18-Artikel-ERP-Beispieldatei. Die Datei, die
+Ausgabedatei, Roh-GraphQL-Antworten und Zugangsdaten wurden **nicht** committet.
+
+**Verbindung/Auth:** OAuth2-Token wird korrekt geholt; alle 18 Artikel werden
+verarbeitet; keine API-/Rate-Limit-Fehler; Einzelfehler brechen den Lauf nicht ab.
+
+**Match-Status (18 Artikel):**
+
+| Status | Anzahl |
+| --- | --- |
+| Exakter Treffer (`EXACT_MATCH`) | 6 |
+| Herstellerabweichung (`MANUFACTURER_MISMATCH`) | 7 |
+| Mehrere exakte Treffer (`MULTIPLE_EXACT_MATCHES`) | 1 |
+| Kein exakter Treffer (`NO_EXACT_MATCH`) | 3 |
+| Keine Herstellerteilenummer (`NO_MPN`) | 1 |
+| API-/Rate-Limit-Fehler | 0 |
+
+**Strukturierte Spezifikationen:** Nexar liefert pro Treffer viele strukturierte
+`SupSpec`-Parameter (bei Treffern typ. 13–42 Spezifikationen). Das ist der
+entscheidende Unterschied zum Mouser-Live-Lauf, bei dem strukturiert im
+Wesentlichen nur Verpackungs-/Versanddaten ankamen und die technischen Werte im
+nicht nutzbaren Freitext `Description` standen.
+
+**Erzeugte Vorschläge:** 14 gesamt
+
+| Aktion | Anzahl |
+| --- | --- |
+| Bestätigt (`BESTAETIGT`) | 5 |
+| Konflikt prüfen (`KONFLIKT_PRUEFEN`) | 6 |
+| Ergänzen (`ERGAENZEN`) | 3 |
+
+Betroffene ERP-Attribute (aus strukturierten Parametern): `Bauform` (4),
+`Wert` (3), `Toleranz` (3), `Leistung`, `Dielektrikum`, `Spannung`, `SmdBauform`.
+Genutzte Nexar-Quellparameter u. a.: `resistance`, `capacitance`, `inductance`,
+`tolerance`, `powerrating`, `voltagerating_dc_`, `dielectric`, `Case/Package`,
+`Case Code (Imperial)`. Konfidenz: 4× Hoch, 10× Niedrig (niedrig v. a. bei
+Herstellerabweichung bzw. mehreren Treffern — regelkonform als Prüfhinweis).
+
+**Cache verifiziert:** Ein zweiter Lauf mit **absichtlich ungültigen**
+Zugangsdaten lieferte identische Ergebnisse (6 exakte Treffer, 14 Vorschläge) —
+Beweis, dass ausschließlich der Cache genutzt und keine erneute API-Abfrage
+ausgeführt wurde. Die Cache-Dateien (`.cache/nexar-search-mpn-v1/`) enthalten nur
+das neutrale Produktmodell, normalisierte MPN und Zeitstempel; ein Scan bestätigte
+**keine** Zugangsdaten/Token/`Authorization`-Header und keine vollständige
+Roh-GraphQL-Antwort. `--clear-cache` leert den Cache.
+
+**Vergleich mit Mouser:** Identische Beispieldatei — Mouser: 0 technische
+Vorschläge (strukturiert nur Verpackung); Nexar: 14 Vorschläge aus echten
+strukturierten technischen Parametern. Nexar ist damit die bislang ergiebigste
+strukturierte Quelle für unseren Anwendungsfall.
+
 ## Batching (Ausblick)
 
 `supMultiMatch` existiert für Batch-Suchen, wird aber **noch nicht** verwendet:
@@ -240,9 +295,9 @@ eine spätere Batching-Erweiterung offen.
 
 ## Einschränkungen
 
-- Ohne Zugangsdaten ist nur der (mockbasierte) Automatiktest möglich; die reale
-  Spezifikationsabdeckung je Sachgruppe steht unter dem Vorbehalt des manuellen
-  E2E-Tests.
+- Der Live-E2E-Lauf bestätigte reichhaltige strukturierte Spezifikationen; die
+  vollständige Abdeckung je Sachgruppe hängt vom jeweiligen Nexar-Katalogdatensatz
+  ab und kann bei einzelnen Teilen (0 Spezifikationen) fehlen.
 - Es werden nur eindeutig strukturierte Spezifikationen gemappt; mehrdeutige
   Werte/Einheiten werden bewusst **nicht** geraten.
 - `shortDescription`/Freitext dient nie als Attributquelle.
